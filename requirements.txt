@@ -1,1 +1,10 @@
-
+# Python Libraries Versions in the Project 
+- numpy>=1.24.0
+- pandas>=2.0.0
+- scikit-learn>=1.3.0
+- matplotlib>=3.7.0
+- seaborn>=0.12.0
+- scipy>=1.10.0
+- joblib>=1.3.0
+- pickle-mixin>=1.0.2
+- plotly>=5.14.0
