@@ -92,47 +92,6 @@ The recommendations will also estimate the possible energy and financial savings
 
 ---
 
-## 📊 Dashboard
-
-The project will include a web-based dashboard that presents the results in an easy-to-understand way.
-
-The dashboard is planned to include:
-
-### Overview
-
-* Current energy consumption
-* Predicted consumption
-* Estimated electricity cost
-* Potential savings
-* Number of detected anomalies
-
-### Consumption Analysis
-
-* Daily consumption
-* Hourly consumption
-* Weekly/monthly trends
-* Peak consumption periods
-
-### AI Forecast
-
-* Historical consumption
-* Future consumption prediction
-* Forecasting performance
-
-### Anomaly Detection
-
-* Detected unusual consumption
-* Date and time of the anomaly
-* Difference from normal consumption
-
-### Recommendations
-
-* Suggested energy-saving actions
-* Estimated energy savings
-* Estimated cost savings
-
----
-
 ## 🛠️ Technologies
 
 The planned technology stack includes:
@@ -169,8 +128,6 @@ EnergySavvy-AI/
 │   ├── anomaly_detection.py
 │   ├── recommendations.py
 │   └── cost_calculation.py
-│
-├── models/
 │
 ├── dashboard/
 │   └── app.py
@@ -216,14 +173,6 @@ Actual results will be added after testing.
 
 ---
 
-## 🧪 Current Development Stage
-
-**Current stage: Idea / Initial Design**
-
-The project is currently being planned and designed. The implementation, model training, dashboard development, and experimental evaluation will be completed as development progresses.
-
----
-
 ## 🏆 RoboDam 2026
 
 EnergySavvy AI is designed for the **Intelligent Systems** track of **RoboDam 2026**.
@@ -243,22 +192,6 @@ It combines artificial intelligence, machine learning, and data analysis to help
 **Project:** EnergySavvy AI
 
 **Competition:** RoboDam 2026 – Intelligent Systems
-
----
-
-## 🚀 Future Improvements
-
-Possible future improvements include:
-
-* Real-time smart meter integration.
-* Appliance-level energy monitoring.
-* Integration with IoT sensors.
-* Mobile application.
-* More advanced forecasting models.
-* Personalized energy profiles.
-* AI-based conversational assistant.
-* Testing with real households.
-* Automatic tracking of savings over time.
 
 ---
 
