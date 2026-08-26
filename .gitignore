@@ -11,8 +11,14 @@ env/
 # Data: keep large/private raw data out of Git
 data/**/raw/*
 !data/**/raw/.gitkeep
+
+# Processed: ignore large 1min, keep hourly/daily for 03,04,05 and Colab badge
 data/**/processed/*
 !data/**/processed/.gitkeep
+!data/household_power/processed/household_power_hourly.parquet
+!data/household_power/processed/household_power_hourly.csv
+!data/household_power/processed/household_power_daily.csv
+!data/cairo_weather/processed/*
 
 # Trained models
 models/*
