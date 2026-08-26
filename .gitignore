@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Data: keep large/private raw data out of Git
+data/**/raw/*
+!data/**/raw/.gitkeep
+data/**/processed/*
+!data/**/processed/.gitkeep
+
+# Trained models
+models/*
+!models/.gitkeep
+
+# Generated reports
+reports/figures/*
+!reports/figures/.gitkeep
+reports/results/*
+!reports/results/.gitkeep
+
+# Streamlit
+.streamlit/secrets.toml
