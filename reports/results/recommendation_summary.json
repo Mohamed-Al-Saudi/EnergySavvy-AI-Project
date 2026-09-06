@@ -1,0 +1,25 @@
+{
+  "total_recommendations": 3889,
+  "by_type": {
+    "Peak_Shift": 2860,
+    "Night_Idle_Waste": 978,
+    "Anomaly_Inspection": 50,
+    "Base_Load_Reduction": 1
+  },
+  "by_severity": {
+    "Medium": 2121,
+    "Low": 978,
+    "High": 790
+  },
+  "total_saving_kwh": 2594.298,
+  "peak_hours": {
+    "20": 1.8897756338119507,
+    "21": 1.867965579032898,
+    "19": 1.7247487306594849
+  },
+  "submetering_share_pct": {
+    "Sub_metering_1": 12.549173355102539,
+    "Sub_metering_2": 14.582226753234863,
+    "Sub_metering_3": 72.86859893798828
+  }
+}
