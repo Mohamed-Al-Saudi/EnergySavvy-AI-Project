@@ -1,0 +1,802 @@
+[
+  {
+    "timestamp":"2010-10-30T20:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"High",
+    "message":"High consumption 3.31kW at 20.0h (peak). Shift washing\/dishwasher to 13-16h off-peak.",
+    "estimated_saving_kwh":0.663,
+    "condition":"hour=20 & kW>1.55"
+  },
+  {
+    "timestamp":"2010-10-30T21:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"High",
+    "message":"High consumption 3.02kW at 21.0h (peak). Shift washing\/dishwasher to 13-16h off-peak.",
+    "estimated_saving_kwh":0.603,
+    "condition":"hour=21 & kW>1.62"
+  },
+  {
+    "timestamp":"2010-10-31T01:00:00.000",
+    "type":"Night_Idle_Waste",
+    "severity":"Low",
+    "message":"Idle consumption 1.48kW at 1h. Check standby: router, fridge, Sub_metering_3.",
+    "estimated_saving_kwh":1.176,
+    "condition":"hour in 1-5 & kW>0.8"
+  },
+  {
+    "timestamp":"2010-10-31T02:00:00.000",
+    "type":"Night_Idle_Waste",
+    "severity":"Low",
+    "message":"Idle consumption 1.43kW at 2h. Check standby: router, fridge, Sub_metering_3.",
+    "estimated_saving_kwh":1.13,
+    "condition":"hour in 1-5 & kW>0.8"
+  },
+  {
+    "timestamp":"2010-10-31T03:00:00.000",
+    "type":"Night_Idle_Waste",
+    "severity":"Low",
+    "message":"Idle consumption 1.56kW at 3h. Check standby: router, fridge, Sub_metering_3.",
+    "estimated_saving_kwh":1.255,
+    "condition":"hour in 1-5 & kW>0.8"
+  },
+  {
+    "timestamp":"2010-10-31T04:00:00.000",
+    "type":"Night_Idle_Waste",
+    "severity":"Low",
+    "message":"Idle consumption 1.47kW at 4h. Check standby: router, fridge, Sub_metering_3.",
+    "estimated_saving_kwh":1.166,
+    "condition":"hour in 1-5 & kW>0.8"
+  },
+  {
+    "timestamp":"2010-10-31T05:00:00.000",
+    "type":"Night_Idle_Waste",
+    "severity":"Low",
+    "message":"Idle consumption 2.91kW at 5h. Check standby: router, fridge, Sub_metering_3.",
+    "estimated_saving_kwh":2.61,
+    "condition":"hour in 1-5 & kW>0.8"
+  },
+  {
+    "timestamp":"2010-11-01T01:00:00.000",
+    "type":"Night_Idle_Waste",
+    "severity":"Low",
+    "message":"Idle consumption 1.48kW at 1h. Check standby: router, fridge, Sub_metering_3.",
+    "estimated_saving_kwh":1.18,
+    "condition":"hour in 1-5 & kW>0.8"
+  },
+  {
+    "timestamp":"2010-11-01T02:00:00.000",
+    "type":"Night_Idle_Waste",
+    "severity":"Low",
+    "message":"Idle consumption 1.29kW at 2h. Check standby: router, fridge, Sub_metering_3.",
+    "estimated_saving_kwh":0.986,
+    "condition":"hour in 1-5 & kW>0.8"
+  },
+  {
+    "timestamp":"2010-11-01T03:00:00.000",
+    "type":"Night_Idle_Waste",
+    "severity":"Low",
+    "message":"Idle consumption 1.06kW at 3h. Check standby: router, fridge, Sub_metering_3.",
+    "estimated_saving_kwh":0.765,
+    "condition":"hour in 1-5 & kW>0.8"
+  },
+  {
+    "timestamp":"2010-11-02T01:00:00.000",
+    "type":"Night_Idle_Waste",
+    "severity":"Low",
+    "message":"Idle consumption 1.26kW at 1h. Check standby: router, fridge, Sub_metering_3.",
+    "estimated_saving_kwh":0.963,
+    "condition":"hour in 1-5 & kW>0.8"
+  },
+  {
+    "timestamp":"2010-11-02T04:00:00.000",
+    "type":"Night_Idle_Waste",
+    "severity":"Low",
+    "message":"Idle consumption 1.43kW at 4h. Check standby: router, fridge, Sub_metering_3.",
+    "estimated_saving_kwh":1.128,
+    "condition":"hour in 1-5 & kW>0.8"
+  },
+  {
+    "timestamp":"2010-11-03T01:00:00.000",
+    "type":"Night_Idle_Waste",
+    "severity":"Low",
+    "message":"Idle consumption 0.96kW at 1h. Check standby: router, fridge, Sub_metering_3.",
+    "estimated_saving_kwh":0.656,
+    "condition":"hour in 1-5 & kW>0.8"
+  },
+  {
+    "timestamp":"2010-11-03T02:00:00.000",
+    "type":"Night_Idle_Waste",
+    "severity":"Low",
+    "message":"Idle consumption 1.06kW at 2h. Check standby: router, fridge, Sub_metering_3.",
+    "estimated_saving_kwh":0.762,
+    "condition":"hour in 1-5 & kW>0.8"
+  },
+  {
+    "timestamp":"2010-11-03T20:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"High consumption 1.62kW at 20.0h (peak). Shift washing\/dishwasher to 13-16h off-peak.",
+    "estimated_saving_kwh":0.324,
+    "condition":"hour=20 & kW>1.11"
+  },
+  {
+    "timestamp":"2010-11-03T21:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"High",
+    "message":"High consumption 3.14kW at 21.0h (peak). Shift washing\/dishwasher to 13-16h off-peak.",
+    "estimated_saving_kwh":0.629,
+    "condition":"hour=21 & kW>1.20"
+  },
+  {
+    "timestamp":"2010-11-04T01:00:00.000",
+    "type":"Night_Idle_Waste",
+    "severity":"Low",
+    "message":"Idle consumption 0.84kW at 1h. Check standby: router, fridge, Sub_metering_3.",
+    "estimated_saving_kwh":0.542,
+    "condition":"hour in 1-5 & kW>0.8"
+  },
+  {
+    "timestamp":"2010-11-04T08:00:00.000",
+    "type":"Anomaly_Inspection",
+    "severity":"High",
+    "message":"Anomaly detected: 4.42kW vs expected 1.86kW (residual 2.56). Check appliance left on.",
+    "estimated_saving_kwh":2.562,
+    "condition":"z_score=4.29 | abs_error=2.56"
+  },
+  {
+    "timestamp":"2010-11-04T19:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"High",
+    "message":"High consumption 4.05kW at 19.0h (peak). Shift washing\/dishwasher to 13-16h off-peak.",
+    "estimated_saving_kwh":0.811,
+    "condition":"hour=19 & kW>1.92"
+  },
+  {
+    "timestamp":"2010-11-04T20:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"High",
+    "message":"High consumption 4.46kW at 20.0h (peak). Shift washing\/dishwasher to 13-16h off-peak.",
+    "estimated_saving_kwh":0.893,
+    "condition":"hour=20 & kW>2.06"
+  },
+  {
+    "timestamp":"2010-11-04T21:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"High",
+    "message":"High consumption 3.10kW at 21.0h (peak). Shift washing\/dishwasher to 13-16h off-peak.",
+    "estimated_saving_kwh":0.619,
+    "condition":"hour=21 & kW>2.06"
+  },
+  {
+    "timestamp":"2010-11-05T19:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"High consumption 1.77kW at 19.0h (peak). Shift washing\/dishwasher to 13-16h off-peak.",
+    "estimated_saving_kwh":0.353,
+    "condition":"hour=19 & kW>1.67"
+  },
+  {
+    "timestamp":"2010-11-05T20:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"High consumption 2.20kW at 20.0h (peak). Shift washing\/dishwasher to 13-16h off-peak.",
+    "estimated_saving_kwh":0.441,
+    "condition":"hour=20 & kW>1.56"
+  },
+  {
+    "timestamp":"2010-11-05T21:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"High consumption 1.84kW at 21.0h (peak). Shift washing\/dishwasher to 13-16h off-peak.",
+    "estimated_saving_kwh":0.368,
+    "condition":"hour=21 & kW>1.50"
+  },
+  {
+    "timestamp":"2010-11-06T02:00:00.000",
+    "type":"Night_Idle_Waste",
+    "severity":"Low",
+    "message":"Idle consumption 1.00kW at 2h. Check standby: router, fridge, Sub_metering_3.",
+    "estimated_saving_kwh":0.702,
+    "condition":"hour in 1-5 & kW>0.8"
+  },
+  {
+    "timestamp":"2010-11-06T18:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"High consumption 2.09kW at 18.0h (peak). Shift washing\/dishwasher to 13-16h off-peak.",
+    "estimated_saving_kwh":0.418,
+    "condition":"hour=18 & kW>1.59"
+  },
+  {
+    "timestamp":"2010-11-06T19:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"High consumption 1.89kW at 19.0h (peak). Shift washing\/dishwasher to 13-16h off-peak.",
+    "estimated_saving_kwh":0.379,
+    "condition":"hour=19 & kW>1.59"
+  },
+  {
+    "timestamp":"2010-11-07T18:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"High consumption 1.94kW at 18.0h (peak). Shift washing\/dishwasher to 13-16h off-peak.",
+    "estimated_saving_kwh":0.387,
+    "condition":"hour=18 & kW>1.31"
+  },
+  {
+    "timestamp":"2010-11-07T19:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"High consumption 1.95kW at 19.0h (peak). Shift washing\/dishwasher to 13-16h off-peak.",
+    "estimated_saving_kwh":0.389,
+    "condition":"hour=19 & kW>1.31"
+  },
+  {
+    "timestamp":"2010-11-07T20:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"High consumption 2.11kW at 20.0h (peak). Shift washing\/dishwasher to 13-16h off-peak.",
+    "estimated_saving_kwh":0.422,
+    "condition":"hour=20 & kW>1.35"
+  },
+  {
+    "timestamp":"2010-11-07T21:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"High consumption 1.73kW at 21.0h (peak). Shift washing\/dishwasher to 13-16h off-peak.",
+    "estimated_saving_kwh":0.347,
+    "condition":"hour=21 & kW>1.39"
+  },
+  {
+    "timestamp":"2010-11-08T03:00:00.000",
+    "type":"Night_Idle_Waste",
+    "severity":"Low",
+    "message":"Idle consumption 1.01kW at 3h. Check standby: router, fridge, Sub_metering_3.",
+    "estimated_saving_kwh":0.71,
+    "condition":"hour in 1-5 & kW>0.8"
+  },
+  {
+    "timestamp":"2010-11-08T18:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"High consumption 1.58kW at 18.0h (peak). Shift washing\/dishwasher to 13-16h off-peak.",
+    "estimated_saving_kwh":0.316,
+    "condition":"hour=18 & kW>1.41"
+  },
+  {
+    "timestamp":"2010-11-08T19:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"High consumption 2.15kW at 19.0h (peak). Shift washing\/dishwasher to 13-16h off-peak.",
+    "estimated_saving_kwh":0.43,
+    "condition":"hour=19 & kW>1.42"
+  },
+  {
+    "timestamp":"2010-11-08T20:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"High consumption 2.56kW at 20.0h (peak). Shift washing\/dishwasher to 13-16h off-peak.",
+    "estimated_saving_kwh":0.511,
+    "condition":"hour=20 & kW>1.44"
+  },
+  {
+    "timestamp":"2010-11-08T21:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"High consumption 2.65kW at 21.0h (peak). Shift washing\/dishwasher to 13-16h off-peak.",
+    "estimated_saving_kwh":0.53,
+    "condition":"hour=21 & kW>1.49"
+  },
+  {
+    "timestamp":"2010-11-09T18:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"High consumption 2.81kW at 18.0h (peak). Shift washing\/dishwasher to 13-16h off-peak.",
+    "estimated_saving_kwh":0.562,
+    "condition":"hour=18 & kW>1.54"
+  },
+  {
+    "timestamp":"2010-11-09T19:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"High consumption 2.42kW at 19.0h (peak). Shift washing\/dishwasher to 13-16h off-peak.",
+    "estimated_saving_kwh":0.483,
+    "condition":"hour=19 & kW>1.55"
+  },
+  {
+    "timestamp":"2010-11-09T20:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"High",
+    "message":"High consumption 3.79kW at 20.0h (peak). Shift washing\/dishwasher to 13-16h off-peak.",
+    "estimated_saving_kwh":0.757,
+    "condition":"hour=20 & kW>1.61"
+  },
+  {
+    "timestamp":"2010-11-09T21:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"High consumption 2.94kW at 21.0h (peak). Shift washing\/dishwasher to 13-16h off-peak.",
+    "estimated_saving_kwh":0.587,
+    "condition":"hour=21 & kW>1.63"
+  },
+  {
+    "timestamp":"2010-11-11T18:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"High consumption 1.58kW at 18.0h (peak). Shift washing\/dishwasher to 13-16h off-peak.",
+    "estimated_saving_kwh":0.315,
+    "condition":"hour=18 & kW>1.39"
+  },
+  {
+    "timestamp":"2010-11-11T19:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"High consumption 1.61kW at 19.0h (peak). Shift washing\/dishwasher to 13-16h off-peak.",
+    "estimated_saving_kwh":0.322,
+    "condition":"hour=19 & kW>1.42"
+  },
+  {
+    "timestamp":"2010-11-11T20:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"High consumption 1.86kW at 20.0h (peak). Shift washing\/dishwasher to 13-16h off-peak.",
+    "estimated_saving_kwh":0.372,
+    "condition":"hour=20 & kW>1.50"
+  },
+  {
+    "timestamp":"2010-11-12T18:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"High consumption 2.28kW at 18.0h (peak). Shift washing\/dishwasher to 13-16h off-peak.",
+    "estimated_saving_kwh":0.456,
+    "condition":"hour=18 & kW>1.48"
+  },
+  {
+    "timestamp":"2010-11-12T19:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"High consumption 2.39kW at 19.0h (peak). Shift washing\/dishwasher to 13-16h off-peak.",
+    "estimated_saving_kwh":0.478,
+    "condition":"hour=19 & kW>1.51"
+  },
+  {
+    "timestamp":"2010-11-12T20:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"High consumption 1.75kW at 20.0h (peak). Shift washing\/dishwasher to 13-16h off-peak.",
+    "estimated_saving_kwh":0.351,
+    "condition":"hour=20 & kW>1.51"
+  },
+  {
+    "timestamp":"2010-11-13T01:00:00.000",
+    "type":"Night_Idle_Waste",
+    "severity":"Low",
+    "message":"Idle consumption 0.85kW at 1h. Check standby: router, fridge, Sub_metering_3.",
+    "estimated_saving_kwh":0.548,
+    "condition":"hour in 1-5 & kW>0.8"
+  },
+  {
+    "timestamp":"2010-11-13T18:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"High consumption 1.72kW at 18.0h (peak). Shift washing\/dishwasher to 13-16h off-peak.",
+    "estimated_saving_kwh":0.343,
+    "condition":"hour=18 & kW>1.54"
+  },
+  {
+    "timestamp":"2010-11-13T19:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"High consumption 2.29kW at 19.0h (peak). Shift washing\/dishwasher to 13-16h off-peak.",
+    "estimated_saving_kwh":0.458,
+    "condition":"hour=19 & kW>1.53"
+  },
+  {
+    "timestamp":"2010-11-13T20:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"High consumption 1.71kW at 20.0h (peak). Shift washing\/dishwasher to 13-16h off-peak.",
+    "estimated_saving_kwh":0.343,
+    "condition":"hour=20 & kW>1.53"
+  },
+  {
+    "timestamp":"2010-11-13T21:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"High consumption 1.71kW at 21.0h (peak). Shift washing\/dishwasher to 13-16h off-peak.",
+    "estimated_saving_kwh":0.341,
+    "condition":"hour=21 & kW>1.56"
+  },
+  {
+    "timestamp":"2010-11-14T01:00:00.000",
+    "type":"Night_Idle_Waste",
+    "severity":"Low",
+    "message":"Idle consumption 1.57kW at 1h. Check standby: router, fridge, Sub_metering_3.",
+    "estimated_saving_kwh":1.268,
+    "condition":"hour in 1-5 & kW>0.8"
+  },
+  {
+    "timestamp":"2010-11-14T02:00:00.000",
+    "type":"Night_Idle_Waste",
+    "severity":"Low",
+    "message":"Idle consumption 1.00kW at 2h. Check standby: router, fridge, Sub_metering_3.",
+    "estimated_saving_kwh":0.702,
+    "condition":"hour in 1-5 & kW>0.8"
+  },
+  {
+    "timestamp":"2010-11-14T15:00:00.000",
+    "type":"Anomaly_Inspection",
+    "severity":"High",
+    "message":"Anomaly detected: 4.16kW vs expected 1.49kW (residual 2.67). Check appliance left on.",
+    "estimated_saving_kwh":2.667,
+    "condition":"z_score=4.66 | abs_error=2.67"
+  },
+  {
+    "timestamp":"2010-11-14T18:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"High consumption 2.38kW at 18.0h (peak). Shift washing\/dishwasher to 13-16h off-peak.",
+    "estimated_saving_kwh":0.477,
+    "condition":"hour=18 & kW>1.76"
+  },
+  {
+    "timestamp":"2010-11-14T20:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"High consumption 2.63kW at 20.0h (peak). Shift washing\/dishwasher to 13-16h off-peak.",
+    "estimated_saving_kwh":0.526,
+    "condition":"hour=20 & kW>1.76"
+  },
+  {
+    "timestamp":"2010-11-14T21:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"High consumption 2.55kW at 21.0h (peak). Shift washing\/dishwasher to 13-16h off-peak.",
+    "estimated_saving_kwh":0.51,
+    "condition":"hour=21 & kW>1.81"
+  },
+  {
+    "timestamp":"2010-11-15T19:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"High consumption 1.58kW at 19.0h (peak). Shift washing\/dishwasher to 13-16h off-peak.",
+    "estimated_saving_kwh":0.316,
+    "condition":"hour=19 & kW>1.47"
+  },
+  {
+    "timestamp":"2010-11-15T20:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"High consumption 2.99kW at 20.0h (peak). Shift washing\/dishwasher to 13-16h off-peak.",
+    "estimated_saving_kwh":0.599,
+    "condition":"hour=20 & kW>1.49"
+  },
+  {
+    "timestamp":"2010-11-15T21:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"High consumption 1.51kW at 21.0h (peak). Shift washing\/dishwasher to 13-16h off-peak.",
+    "estimated_saving_kwh":0.302,
+    "condition":"hour=21 & kW>1.43"
+  },
+  {
+    "timestamp":"2010-11-16T02:00:00.000",
+    "type":"Night_Idle_Waste",
+    "severity":"Low",
+    "message":"Idle consumption 1.03kW at 2h. Check standby: router, fridge, Sub_metering_3.",
+    "estimated_saving_kwh":0.727,
+    "condition":"hour in 1-5 & kW>0.8"
+  },
+  {
+    "timestamp":"2010-11-16T18:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"High consumption 2.06kW at 18.0h (peak). Shift washing\/dishwasher to 13-16h off-peak.",
+    "estimated_saving_kwh":0.413,
+    "condition":"hour=18 & kW>1.25"
+  },
+  {
+    "timestamp":"2010-11-16T19:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"High consumption 1.99kW at 19.0h (peak). Shift washing\/dishwasher to 13-16h off-peak.",
+    "estimated_saving_kwh":0.397,
+    "condition":"hour=19 & kW>1.27"
+  },
+  {
+    "timestamp":"2010-11-16T20:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"High consumption 2.18kW at 20.0h (peak). Shift washing\/dishwasher to 13-16h off-peak.",
+    "estimated_saving_kwh":0.435,
+    "condition":"hour=20 & kW>1.23"
+  },
+  {
+    "timestamp":"2010-11-16T21:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"High consumption 2.53kW at 21.0h (peak). Shift washing\/dishwasher to 13-16h off-peak.",
+    "estimated_saving_kwh":0.506,
+    "condition":"hour=21 & kW>1.28"
+  },
+  {
+    "timestamp":"2010-11-17T18:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"High consumption 1.63kW at 18.0h (peak). Shift washing\/dishwasher to 13-16h off-peak.",
+    "estimated_saving_kwh":0.326,
+    "condition":"hour=18 & kW>1.32"
+  },
+  {
+    "timestamp":"2010-11-17T19:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"High consumption 2.33kW at 19.0h (peak). Shift washing\/dishwasher to 13-16h off-peak.",
+    "estimated_saving_kwh":0.465,
+    "condition":"hour=19 & kW>1.33"
+  },
+  {
+    "timestamp":"2010-11-17T20:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"High consumption 2.24kW at 20.0h (peak). Shift washing\/dishwasher to 13-16h off-peak.",
+    "estimated_saving_kwh":0.449,
+    "condition":"hour=20 & kW>1.34"
+  },
+  {
+    "timestamp":"2010-11-17T21:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"High consumption 1.74kW at 21.0h (peak). Shift washing\/dishwasher to 13-16h off-peak.",
+    "estimated_saving_kwh":0.348,
+    "condition":"hour=21 & kW>1.30"
+  },
+  {
+    "timestamp":"2010-11-18T03:00:00.000",
+    "type":"Night_Idle_Waste",
+    "severity":"Low",
+    "message":"Idle consumption 1.02kW at 3h. Check standby: router, fridge, Sub_metering_3.",
+    "estimated_saving_kwh":0.719,
+    "condition":"hour in 1-5 & kW>0.8"
+  },
+  {
+    "timestamp":"2010-11-18T18:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"High consumption 2.73kW at 18.0h (peak). Shift washing\/dishwasher to 13-16h off-peak.",
+    "estimated_saving_kwh":0.546,
+    "condition":"hour=18 & kW>1.37"
+  },
+  {
+    "timestamp":"2010-11-18T19:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"High consumption 2.57kW at 19.0h (peak). Shift washing\/dishwasher to 13-16h off-peak.",
+    "estimated_saving_kwh":0.515,
+    "condition":"hour=19 & kW>1.39"
+  },
+  {
+    "timestamp":"2010-11-18T20:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"High consumption 2.16kW at 20.0h (peak). Shift washing\/dishwasher to 13-16h off-peak.",
+    "estimated_saving_kwh":0.433,
+    "condition":"hour=20 & kW>1.38"
+  },
+  {
+    "timestamp":"2010-11-18T21:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"High consumption 1.93kW at 21.0h (peak). Shift washing\/dishwasher to 13-16h off-peak.",
+    "estimated_saving_kwh":0.387,
+    "condition":"hour=21 & kW>1.39"
+  },
+  {
+    "timestamp":"2010-11-19T02:00:00.000",
+    "type":"Night_Idle_Waste",
+    "severity":"Low",
+    "message":"Idle consumption 0.95kW at 2h. Check standby: router, fridge, Sub_metering_3.",
+    "estimated_saving_kwh":0.655,
+    "condition":"hour in 1-5 & kW>0.8"
+  },
+  {
+    "timestamp":"2010-11-19T20:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"High consumption 1.67kW at 20.0h (peak). Shift washing\/dishwasher to 13-16h off-peak.",
+    "estimated_saving_kwh":0.333,
+    "condition":"hour=20 & kW>1.34"
+  },
+  {
+    "timestamp":"2010-11-19T21:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"High consumption 1.78kW at 21.0h (peak). Shift washing\/dishwasher to 13-16h off-peak.",
+    "estimated_saving_kwh":0.356,
+    "condition":"hour=21 & kW>1.33"
+  },
+  {
+    "timestamp":"2010-11-20T05:00:00.000",
+    "type":"Night_Idle_Waste",
+    "severity":"Low",
+    "message":"Idle consumption 0.89kW at 5h. Check standby: router, fridge, Sub_metering_3.",
+    "estimated_saving_kwh":0.585,
+    "condition":"hour in 1-5 & kW>0.8"
+  },
+  {
+    "timestamp":"2010-11-20T18:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"High",
+    "message":"High consumption 5.63kW at 18.0h (peak). Shift washing\/dishwasher to 13-16h off-peak.",
+    "estimated_saving_kwh":1.125,
+    "condition":"hour=18 & kW>1.65"
+  },
+  {
+    "timestamp":"2010-11-20T18:00:00.000",
+    "type":"Anomaly_Inspection",
+    "severity":"High",
+    "message":"Anomaly detected: 5.63kW vs expected 1.76kW (residual 3.87). Check appliance left on.",
+    "estimated_saving_kwh":3.868,
+    "condition":"z_score=6.76 | abs_error=3.87"
+  },
+  {
+    "timestamp":"2010-11-20T19:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"High",
+    "message":"High consumption 3.26kW at 19.0h (peak). Shift washing\/dishwasher to 13-16h off-peak.",
+    "estimated_saving_kwh":0.652,
+    "condition":"hour=19 & kW>1.75"
+  },
+  {
+    "timestamp":"2010-11-20T20:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"High consumption 2.12kW at 20.0h (peak). Shift washing\/dishwasher to 13-16h off-peak.",
+    "estimated_saving_kwh":0.423,
+    "condition":"hour=20 & kW>1.78"
+  },
+  {
+    "timestamp":"2010-11-21T02:00:00.000",
+    "type":"Night_Idle_Waste",
+    "severity":"Low",
+    "message":"Idle consumption 0.90kW at 2h. Check standby: router, fridge, Sub_metering_3.",
+    "estimated_saving_kwh":0.597,
+    "condition":"hour in 1-5 & kW>0.8"
+  },
+  {
+    "timestamp":"2010-11-22T18:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"High",
+    "message":"High consumption 3.17kW at 18.0h (peak). Shift washing\/dishwasher to 13-16h off-peak.",
+    "estimated_saving_kwh":0.634,
+    "condition":"hour=18 & kW>1.49"
+  },
+  {
+    "timestamp":"2010-11-22T18:00:00.000",
+    "type":"Anomaly_Inspection",
+    "severity":"High",
+    "message":"Anomaly detected: 3.17kW vs expected 0.95kW (residual 2.22). Check appliance left on.",
+    "estimated_saving_kwh":2.215,
+    "condition":"z_score=3.90 | abs_error=2.22"
+  },
+  {
+    "timestamp":"2010-11-22T19:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"High consumption 2.59kW at 19.0h (peak). Shift washing\/dishwasher to 13-16h off-peak.",
+    "estimated_saving_kwh":0.518,
+    "condition":"hour=19 & kW>1.61"
+  },
+  {
+    "timestamp":"2010-11-22T21:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"High consumption 2.39kW at 21.0h (peak). Shift washing\/dishwasher to 13-16h off-peak.",
+    "estimated_saving_kwh":0.478,
+    "condition":"hour=21 & kW>1.72"
+  },
+  {
+    "timestamp":"2010-11-23T18:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"High consumption 1.84kW at 18.0h (peak). Shift washing\/dishwasher to 13-16h off-peak.",
+    "estimated_saving_kwh":0.368,
+    "condition":"hour=18 & kW>1.33"
+  },
+  {
+    "timestamp":"2010-11-23T19:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"High consumption 2.22kW at 19.0h (peak). Shift washing\/dishwasher to 13-16h off-peak.",
+    "estimated_saving_kwh":0.444,
+    "condition":"hour=19 & kW>1.31"
+  },
+  {
+    "timestamp":"2010-11-23T20:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"High consumption 2.64kW at 20.0h (peak). Shift washing\/dishwasher to 13-16h off-peak.",
+    "estimated_saving_kwh":0.527,
+    "condition":"hour=20 & kW>1.37"
+  },
+  {
+    "timestamp":"2010-11-24T18:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"High consumption 2.06kW at 18.0h (peak). Shift washing\/dishwasher to 13-16h off-peak.",
+    "estimated_saving_kwh":0.412,
+    "condition":"hour=18 & kW>1.57"
+  },
+  {
+    "timestamp":"2010-11-24T20:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"High consumption 2.31kW at 20.0h (peak). Shift washing\/dishwasher to 13-16h off-peak.",
+    "estimated_saving_kwh":0.463,
+    "condition":"hour=20 & kW>1.52"
+  },
+  {
+    "timestamp":"2010-11-24T21:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"High consumption 1.57kW at 21.0h (peak). Shift washing\/dishwasher to 13-16h off-peak.",
+    "estimated_saving_kwh":0.314,
+    "condition":"hour=21 & kW>1.53"
+  },
+  {
+    "timestamp":"2010-11-25T05:00:00.000",
+    "type":"Night_Idle_Waste",
+    "severity":"Low",
+    "message":"Idle consumption 0.88kW at 5h. Check standby: router, fridge, Sub_metering_3.",
+    "estimated_saving_kwh":0.581,
+    "condition":"hour in 1-5 & kW>0.8"
+  },
+  {
+    "timestamp":"2010-11-25T18:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"High consumption 2.21kW at 18.0h (peak). Shift washing\/dishwasher to 13-16h off-peak.",
+    "estimated_saving_kwh":0.442,
+    "condition":"hour=18 & kW>1.12"
+  },
+  {
+    "timestamp":"2010-11-25T19:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"High consumption 2.33kW at 19.0h (peak). Shift washing\/dishwasher to 13-16h off-peak.",
+    "estimated_saving_kwh":0.466,
+    "condition":"hour=19 & kW>1.17"
+  },
+  {
+    "timestamp":"2010-11-25T20:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"High consumption 1.65kW at 20.0h (peak). Shift washing\/dishwasher to 13-16h off-peak.",
+    "estimated_saving_kwh":0.33,
+    "condition":"hour=20 & kW>1.13"
+  },
+  {
+    "timestamp":"2010-11-26T18:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"High consumption 1.57kW at 18.0h (peak). Shift washing\/dishwasher to 13-16h off-peak.",
+    "estimated_saving_kwh":0.315,
+    "condition":"hour=18 & kW>1.47"
+  },
+  {
+    "timestamp":"2010-11-26T19:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"High consumption 1.66kW at 19.0h (peak). Shift washing\/dishwasher to 13-16h off-peak.",
+    "estimated_saving_kwh":0.332,
+    "condition":"hour=19 & kW>1.44"
+  },
+  {
+    "timestamp":"2010-11-26T21:00:00.000",
+    "type":"Base_Load_Reduction",
+    "severity":"Medium",
+    "message":"High base load 2799 hours >2.5kW detected. Consider energy-efficient appliances or reduce simultaneous usage.",
+    "estimated_saving_kwh":0.5,
+    "condition":"kW>2.5 for >100 hours"
+  }
+]
