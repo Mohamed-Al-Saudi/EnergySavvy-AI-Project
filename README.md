@@ -18,18 +18,29 @@ This repository currently contains **two separate data domains**:
 ## System workflow
 
 ```text
-Input Data
-   |
-   +--> UCI Household Power ---> Cleaning ---> Features ---> Forecasting
-   |                                                    \-> Anomaly Detection
-   |                                                             |
-   |                                                             v
-   |                                                     Recommendations
-   |
-   +--> Cairo Weather ----------> Cleaning ---> Weather Analysis
-                                                               |
-                                                               v
-                                                         Dashboard Views
+                    TRAINING
+                       │
+       ┌───────────────┴───────────────┐
+       ↓                               ↓
+UCI Household                  Historical Cairo Weather
+       │                               │
+       └───────────────┬───────────────┘
+                       ↓
+                  ML TRAINING
+                       │
+                       ↓
+                  Saved Models
+                       │
+                       │
+                 PRODUCTION
+                       │
+        ┌──────────────┴──────────────┐
+        ↓                             ↓
+ Real Weather API              Energy Simulator
+        │                             │
+        └──────────────┬──────────────┘
+                       ↓
+                 LIVE DASHBOARD
 ```
 
 See `docs/PROJECT_OVERVIEW.md` for the full explanation.
