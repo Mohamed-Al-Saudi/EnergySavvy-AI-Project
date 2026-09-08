@@ -71,12 +71,11 @@ def get_current_weather(latitude: float, longitude: float) -> dict:
         data = response.json()
         current = data.get("current", {})
 
+        
         return {
             "temperature_c": current.get("temperature_2m", 30.0),
-            "humidity_percent": current.get(
-                "relative_humidity_2m",
-                60.0
-            ),
+            "humidity_percent": current.get("relative_humidity_2m", 60.0),
+            "wind_speed_kmh": current.get("wind_speed_10m", 5.0),
             "latitude": latitude,
             "longitude": longitude,
         }
@@ -85,6 +84,7 @@ def get_current_weather(latitude: float, longitude: float) -> dict:
         return {
             "temperature_c": 30.0,
             "humidity_percent": 60.0,
+            "wind_speed_kmh": 5.0,
             "latitude": latitude,
             "longitude": longitude,
         }
