@@ -8,3 +8,4 @@ joblib
 matplotlib
 jupyter
 pytest
+qrcode[pil]
