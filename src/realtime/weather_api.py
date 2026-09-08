@@ -56,7 +56,7 @@ def get_current_weather(latitude: float, longitude: float) -> dict:
     params = {
         "latitude": latitude,
         "longitude": longitude,
-        "current": "temperature_2m,relative_humidity_2m",
+        "current": "temperature_2m,relative_humidity_2m,wind_speed_10m",
         "timezone": "auto",
     }
 
