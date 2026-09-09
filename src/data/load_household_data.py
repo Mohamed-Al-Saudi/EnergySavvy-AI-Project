@@ -4,5 +4,12 @@ import pandas as pd
 
 def load_household_data(path: str | Path) -> pd.DataFrame:
     """Load household power data without changing the original source."""
-    # Adjust separator and missing-value handling after confirming the raw file format.
-    return pd.read_csv(path, sep=";", low_memory=False, na_values="?")
+    # UCI uses ; separator and missing is empty between ;; and sometimes?
+    # Confirmed in 01_household_eda: 1.25% missing = 25979 rows
+    return pd.read_csv(
+        path,
+        sep=";",
+        low_memory=False,
+        na_values=["", "?", "??", "nan"],
+        keep_default_na=True
+    )
