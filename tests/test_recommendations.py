@@ -20,7 +20,7 @@ def test_many_recommendations():
         'Sub_metering_2': [5, 10, 5, 5],
         'Sub_metering_3': [10, 50, 10, 10],
         'unmeasured_Wh': [1000, 2500, 1000, 1000]
-    }, index=pd.date_range("2020-01-01", periods=4, freq="H"))
+    }, index=pd.date_range("2020-01-01", periods=4, freq="h"))
     rec = generate_many_recommendations(df)
     assert isinstance(rec, pd.DataFrame)
     assert len(rec) >= 1  # Should generate at least peak + night etc
