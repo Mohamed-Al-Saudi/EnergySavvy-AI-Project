@@ -10,3 +10,4 @@ jupyter
 pytest
 qrcode[pil]
 requests
+pyarrow
