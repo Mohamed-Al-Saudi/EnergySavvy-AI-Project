@@ -1,102 +1,93 @@
+"""
+EnergySavvy AI
+---------------
+Final Streamlit deployment application.
+
+Main responsibility:
+    - Collect live weather/location data
+    - Generate realtime energy data
+    - Run the existing ML pipeline
+    - Display predictions, anomalies and recommendations
+
+IMPORTANT:
+    Historical UCI/Cairo datasets are training data only.
+    They are NOT used as live data.
+
+Run locally:
+    streamlit run app.py
+"""
+
 from pathlib import Path
-import sys
-import time
+from datetime import datetime
 
 import pandas as pd
 import streamlit as st
 
-# ---------------------------------------------------------
-# Project path
-# ---------------------------------------------------------
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+# ============================================================
+# PROJECT PATHS
+# ============================================================
 
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
+ROOT_DIR = Path(__file__).resolve().parent
 
+MODEL_DIR = ROOT_DIR / "models"
+
+FORECAST_MODEL_PATH = MODEL_DIR / "forecast_rf.pkl"
+
+
+# ============================================================
+# IMPORT EXISTING PROJECT MODULES
+# ============================================================
+
+# Realtime system
 from src.realtime.realtime_engine import RealtimeEngine
-from src.realtime.inference_engine import InferenceEngine
+from src.realtime.energy_simulator import EnergySimulator
 
 
-# ---------------------------------------------------------
-# Page configuration
-# ---------------------------------------------------------
+# ============================================================
+# STREAMLIT PAGE CONFIGURATION
+# ============================================================
 
 st.set_page_config(
     page_title="EnergySavvy AI",
-    page_icon=None,
+    page_icon="⚡",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
 
-# ---------------------------------------------------------
-# Custom CSS
-# ---------------------------------------------------------
+# ============================================================
+# CUSTOM STYLE
+# ============================================================
 
 st.markdown(
     """
     <style>
 
-    .block-container {
-        padding-top: 2rem;
-        padding-bottom: 2rem;
-        max-width: 1500px;
-    }
-
     .main-title {
-        font-size: 2.5rem;
+        font-size: 42px;
         font-weight: 700;
-        margin-bottom: 0.2rem;
+        margin-bottom: 0px;
     }
 
     .subtitle {
-        color: #6b7280;
-        font-size: 1rem;
-        margin-bottom: 2rem;
+        font-size: 18px;
+        color: #666;
+        margin-bottom: 25px;
+    }
+
+    .metric-card {
+        padding: 15px;
+        border-radius: 12px;
+        background-color: #f7f7f7;
+        text-align: center;
     }
 
     .section-title {
-        font-size: 1.45rem;
+        font-size: 25px;
         font-weight: 650;
-        margin-top: 1.5rem;
-        margin-bottom: 1rem;
-    }
-
-    .status-card {
-        padding: 1rem;
-        border-radius: 12px;
-        border: 1px solid #e5e7eb;
-        background: #ffffff;
-        margin-bottom: 0.75rem;
-    }
-
-    .recommendation-card {
-        padding: 1rem;
-        border-radius: 10px;
-        border-left: 4px solid #374151;
-        background: #f9fafb;
-        margin-bottom: 0.75rem;
-    }
-
-    .appliance-on {
-        padding: 0.65rem;
-        border-radius: 8px;
-        background: #f3f4f6;
-        margin-bottom: 0.4rem;
-    }
-
-    .appliance-off {
-        padding: 0.65rem;
-        border-radius: 8px;
-        background: #fafafa;
-        color: #9ca3af;
-        margin-bottom: 0.4rem;
-    }
-
-    .small-text {
-        color: #6b7280;
-        font-size: 0.85rem;
+        margin-top: 25px;
+        margin-bottom: 10px;
     }
 
     </style>
@@ -105,490 +96,599 @@ st.markdown(
 )
 
 
-# ---------------------------------------------------------
-# Session state
-# ---------------------------------------------------------
-
-if "realtime_engine" not in st.session_state:
-    st.session_state.realtime_engine = RealtimeEngine(
-        auto_location=True
-    )
-
-if "inference_engine" not in st.session_state:
-    st.session_state.inference_engine = InferenceEngine(
-        model_path=str(
-            PROJECT_ROOT / "models" / "forecast_rf.pkl"
-        )
-    )
-
-if "power_history" not in st.session_state:
-    st.session_state.power_history = []
-
-if "timestamps" not in st.session_state:
-    st.session_state.timestamps = []
-
-if "auto_refresh" not in st.session_state:
-    st.session_state.auto_refresh = True
-
-if "refresh_seconds" not in st.session_state:
-    st.session_state.refresh_seconds = 5
-
-
-engine = st.session_state.realtime_engine
-inference = st.session_state.inference_engine
-
-
-# ---------------------------------------------------------
-# Sidebar
-# ---------------------------------------------------------
-
-with st.sidebar:
-
-    st.markdown("## EnergySavvy AI")
-
-    st.markdown(
-        "Real-time intelligent household energy management."
-    )
-
-    st.divider()
-
-    st.markdown("### Dashboard controls")
-
-    st.session_state.auto_refresh = st.toggle(
-        "Automatic refresh",
-        value=st.session_state.auto_refresh,
-    )
-
-    st.session_state.refresh_seconds = st.slider(
-        "Refresh interval (seconds)",
-        min_value=2,
-        max_value=30,
-        value=st.session_state.refresh_seconds,
-    )
-
-    st.divider()
-
-    st.markdown("### Location")
-
-    manual_location = st.toggle(
-        "Use manual location",
-        value=False,
-    )
-
-    if manual_location:
-
-        latitude = st.number_input(
-            "Latitude",
-            value=float(engine.latitude),
-            format="%.4f",
-        )
-
-        longitude = st.number_input(
-            "Longitude",
-            value=float(engine.longitude),
-            format="%.4f",
-        )
-
-        city = st.text_input(
-            "City",
-            value=engine.city,
-        )
-
-        if st.button("Update location", use_container_width=True):
-
-            engine.update_location(
-                latitude=latitude,
-                longitude=longitude,
-                city=city,
-            )
-
-            st.rerun()
-
-    else:
-
-        st.markdown(
-            f"Current location: **{engine.city}**"
-        )
-
-        st.markdown(
-            f"Latitude: `{engine.latitude:.4f}`"
-        )
-
-        st.markdown(
-            f"Longitude: `{engine.longitude:.4f}`"
-        )
-
-    st.divider()
-
-    st.markdown("### System status")
-
-    st.success("Real-time engine active")
-
-    st.info("Forecast model loaded")
-
-
-# ---------------------------------------------------------
-# Header
-# ---------------------------------------------------------
+# ============================================================
+# HEADER
+# ============================================================
 
 st.markdown(
-    '<div class="main-title">EnergySavvy AI</div>',
+    '<div class="main-title">⚡ EnergySavvy AI</div>',
     unsafe_allow_html=True,
 )
 
 st.markdown(
     '<div class="subtitle">'
-    "Intelligent real-time household energy management"
+    "Intelligent Energy Management for a Sustainable Future"
     "</div>",
     unsafe_allow_html=True,
 )
 
 
-# ---------------------------------------------------------
-# Get live data
-# ---------------------------------------------------------
+# ============================================================
+# SIDEBAR
+# ============================================================
+
+st.sidebar.title("⚡ EnergySavvy AI")
+
+st.sidebar.markdown(
+    """
+    ### System
+
+    This application combines:
+
+    - 🌤️ Live weather
+    - 📍 Automatic location
+    - ⚡ Realtime energy simulation
+    - 🤖 Energy forecasting
+    - 🚨 Anomaly detection
+    - 💡 Energy recommendations
+
+    ---
+    """
+)
+
+st.sidebar.caption(
+    "RoboDam 2026 • Intelligent Systems"
+)
+
+
+# ============================================================
+# INITIALIZE REALTIME ENGINE
+# ============================================================
+
+@st.cache_resource
+def create_realtime_engine():
+    """
+    Create one RealtimeEngine instance for the Streamlit app.
+
+    The engine automatically determines the user's approximate
+    location through the existing weather/location module.
+    """
+    return RealtimeEngine(auto_location=True)
+
+
+@st.cache_resource
+def create_energy_simulator():
+    """
+    Create the existing realtime energy simulator.
+    """
+    return EnergySimulator()
+
 
 try:
 
-    live_data = engine.get_live_data()
+    realtime_engine = create_realtime_engine()
+    energy_simulator = create_energy_simulator()
 
-    ai_result = inference.process(
-        live_data
-    )
+except Exception as e:
 
-except Exception as error:
+    st.error("Unable to initialize the realtime energy system.")
 
-    st.error(
-        f"Unable to retrieve real-time system data: {error}"
-    )
+    st.exception(e)
 
     st.stop()
 
 
-weather = live_data["weather"]
-energy = live_data["energy"]
-location = live_data["location"]
+# ============================================================
+# GET LIVE DATA
+# ============================================================
 
-forecast = ai_result["forecast"]
-anomaly = ai_result["anomaly"]
-recommendations = ai_result["recommendations"]
+try:
+
+    live_data = realtime_engine.get_live_data()
+
+except Exception as e:
+
+    st.error("Unable to retrieve live weather/location data.")
+
+    st.exception(e)
+
+    st.stop()
 
 
-# ---------------------------------------------------------
-# Live status
-# ---------------------------------------------------------
+# ============================================================
+# EXTRACT LOCATION
+# ============================================================
+
+latitude = live_data.get("latitude")
+longitude = live_data.get("longitude")
+
+city = live_data.get("city", "Unknown")
+
+temperature = live_data.get("temperature")
+
+weather_description = live_data.get(
+    "weather_description",
+    "Unavailable",
+)
+
+
+# ============================================================
+# GENERATE REALTIME ENERGY DATA
+# ============================================================
+
+try:
+
+    energy_data = energy_simulator.generate(
+        temperature=(
+            float(temperature)
+            if temperature is not None
+            else 30.0
+        )
+    )
+
+except Exception as e:
+
+    st.error("Unable to generate realtime energy data.")
+
+    st.exception(e)
+
+    st.stop()
+
+
+# ============================================================
+# CURRENT SYSTEM STATUS
+# ============================================================
 
 st.markdown(
-    '<div class="section-title">Live system status</div>',
+    '<div class="section-title">📡 Live System Status</div>',
     unsafe_allow_html=True,
 )
+
 
 col1, col2, col3, col4 = st.columns(4)
 
+
+# ------------------------------------------------------------
+# LOCATION
+# ------------------------------------------------------------
+
 with col1:
+
     st.metric(
-        "Current power",
-        f"{energy['power_kw']:.2f} kW",
+        label="📍 Location",
+        value=str(city),
     )
+
+
+# ------------------------------------------------------------
+# TEMPERATURE
+# ------------------------------------------------------------
 
 with col2:
-    st.metric(
-        "Voltage",
-        f"{energy['voltage_v']:.1f} V",
-    )
 
-with col3:
-    st.metric(
-        "Current",
-        f"{energy['current_a']:.2f} A",
-    )
+    if temperature is not None:
 
-with col4:
-    st.metric(
-        "Temperature",
-        f"{weather['temperature_c']:.1f} °C",
-    )
+        st.metric(
+            label="🌡️ Temperature",
+            value=f"{float(temperature):.1f} °C",
+        )
 
+    else:
 
-# ---------------------------------------------------------
-# Weather
-# ---------------------------------------------------------
-
-st.markdown(
-    '<div class="section-title">Live environmental conditions</div>',
-    unsafe_allow_html=True,
-)
-
-weather_col1, weather_col2, weather_col3, weather_col4 = st.columns(4)
-
-with weather_col1:
-    st.metric(
-        "Location",
-        location["city"],
-    )
-
-with weather_col2:
-    st.metric(
-        "Temperature",
-        f"{weather['temperature_c']:.1f} °C",
-    )
-
-with weather_col3:
-    st.metric(
-        "Humidity",
-        f"{weather['humidity_percent']:.0f} %",
-    )
-
-with weather_col4:
-    st.metric(
-        "Wind speed",
-        f"{weather.get('wind_speed_kmh', 0):.1f} km/h",
-    )
-
-
-# ---------------------------------------------------------
-# Appliance states
-# ---------------------------------------------------------
-
-st.markdown(
-    '<div class="section-title">Appliance states</div>',
-    unsafe_allow_html=True,
-)
-
-appliances = energy["appliances"]
-
-appliance_columns = st.columns(4)
-
-for index, (name, data) in enumerate(
-    appliances.items()
-):
-
-    column = appliance_columns[
-        index % 4
-    ]
-
-    display_name = name.replace(
-        "_",
-        " ",
-    ).title()
-
-    state = "ON" if data["on"] else "OFF"
-
-    css_class = (
-        "appliance-on"
-        if data["on"]
-        else "appliance-off"
-    )
-
-    with column:
-
-        st.markdown(
-            f"""
-            <div class="{css_class}">
-                <strong>{display_name}</strong><br>
-                {state}<br>
-                <span class="small-text">
-                    {data['power_kw']:.3f} kW
-                </span>
-            </div>
-            """,
-            unsafe_allow_html=True,
+        st.metric(
+            label="🌡️ Temperature",
+            value="N/A",
         )
 
 
-# ---------------------------------------------------------
-# AI outputs
-# ---------------------------------------------------------
+# ------------------------------------------------------------
+# POWER
+# ------------------------------------------------------------
+
+power_kw = energy_data.get("power_kw", 0.0)
+
+with col3:
+
+    st.metric(
+        label="⚡ Current Power",
+        value=f"{float(power_kw):.3f} kW",
+    )
+
+
+# ------------------------------------------------------------
+# WEATHER
+# ------------------------------------------------------------
+
+with col4:
+
+    st.metric(
+        label="🌤️ Weather",
+        value=str(weather_description),
+    )
+
+
+# ============================================================
+# LIVE DETAILS
+# ============================================================
+
+with st.expander("📍 Live environment details"):
+
+    location_col1, location_col2 = st.columns(2)
+
+    with location_col1:
+
+        st.write("**City:**", city)
+        st.write("**Latitude:**", latitude)
+
+    with location_col2:
+
+        st.write("**Longitude:**", longitude)
+        st.write("**Weather:**", weather_description)
+
+
+# ============================================================
+# ENERGY DATA
+# ============================================================
 
 st.markdown(
-    '<div class="section-title">AI analysis</div>',
+    '<div class="section-title">⚡ Current Energy Consumption</div>',
     unsafe_allow_html=True,
 )
 
-ai_col1, ai_col2 = st.columns(2)
+
+energy_col1, energy_col2, energy_col3 = st.columns(3)
 
 
-# ---------------------------------------------------------
-# Forecast
-# ---------------------------------------------------------
+voltage = energy_data.get("voltage_v", 0.0)
+current = energy_data.get("current_a", 0.0)
+power = energy_data.get("power_kw", 0.0)
 
-with ai_col1:
 
-    st.markdown("### Consumption forecast")
+with energy_col1:
 
-    if forecast["available"]:
+    st.metric(
+        "Voltage",
+        f"{float(voltage):.1f} V",
+    )
 
-        st.metric(
-            "Predicted consumption",
-            f"{forecast['prediction_kw']:.2f} kW",
+
+with energy_col2:
+
+    st.metric(
+        "Current",
+        f"{float(current):.2f} A",
+    )
+
+
+with energy_col3:
+
+    st.metric(
+        "Power",
+        f"{float(power):.3f} kW",
+    )
+
+
+# ============================================================
+# APPLIANCE DATA
+# ============================================================
+
+appliances = energy_data.get("appliances", {})
+
+
+if appliances:
+
+    st.markdown(
+        '<div class="section-title">🔌 Appliance Consumption</div>',
+        unsafe_allow_html=True,
+    )
+
+    appliance_df = pd.DataFrame(
+        [
+            {
+                "Appliance": appliance,
+                "Power": value,
+            }
+            for appliance, value in appliances.items()
+        ]
+    )
+
+    st.dataframe(
+        appliance_df,
+        use_container_width=True,
+        hide_index=True,
+    )
+
+    # Appliance chart
+    if not appliance_df.empty:
+
+        st.bar_chart(
+            appliance_df.set_index("Appliance")
+        )
+
+
+# ============================================================
+# FORECAST MODEL
+# ============================================================
+
+st.markdown(
+    '<div class="section-title">🤖 Energy Forecast</div>',
+    unsafe_allow_html=True,
+)
+
+
+if FORECAST_MODEL_PATH.exists():
+
+    try:
+
+        import joblib
+
+        forecast_model = joblib.load(
+            FORECAST_MODEL_PATH
         )
 
         st.success(
-            "Forecast generated from the trained Random Forest model."
+            "Forecasting model loaded successfully."
         )
 
-    else:
+        # ----------------------------------------------------
+        # Prepare a feature vector.
+        #
+        # IMPORTANT:
+        # This section should match the exact features used
+        # when forecast_rf.pkl was trained.
+        #
+        # The first deployment version uses the realtime
+        # variables available from the current system.
+        # ----------------------------------------------------
 
-        st.info(
-            forecast["message"]
+        forecast_features = pd.DataFrame(
+            [
+                {
+                    "temperature": (
+                        float(temperature)
+                        if temperature is not None
+                        else 30.0
+                    ),
+                    "power_kw": float(power),
+                    "voltage_v": float(voltage),
+                    "current_a": float(current),
+                }
+            ]
         )
 
+        # Try prediction.
+        #
+        # If the saved model expects a different number/name
+        # of features, we show the error instead of crashing
+        # the complete dashboard.
 
-# ---------------------------------------------------------
-# Anomaly
-# ---------------------------------------------------------
+        try:
 
-with ai_col2:
-
-    st.markdown("### Consumption anomaly")
-
-    if anomaly["available"]:
-
-        if anomaly["is_anomaly"]:
-
-            st.error(
-                "Unusual consumption detected."
+            prediction = forecast_model.predict(
+                forecast_features
             )
 
-        else:
-
-            st.success(
-                "Consumption is within the normal range."
+            predicted_energy = float(
+                prediction[0]
             )
-
-        anomaly_col1, anomaly_col2 = st.columns(2)
-
-        with anomaly_col1:
 
             st.metric(
-                "Anomaly score",
-                f"{anomaly['score']:.2f}",
+                "Predicted Energy",
+                f"{predicted_energy:.3f}",
             )
 
-        with anomaly_col2:
+        except Exception as prediction_error:
 
-            st.metric(
-                "Live baseline",
-                f"{anomaly['baseline_kw']:.2f} kW",
+            st.warning(
+                "The forecasting model is available, "
+                "but its trained feature structure does not "
+                "match the current realtime feature vector."
             )
 
-    else:
+            st.info(
+                "The model must receive exactly the same "
+                "features used during training."
+            )
 
-        st.info(
-            anomaly["message"]
+            with st.expander(
+                "Technical prediction error"
+            ):
+
+                st.exception(
+                    prediction_error
+                )
+
+    except Exception as model_error:
+
+        st.error(
+            "The forecasting model could not be loaded."
         )
 
+        with st.expander(
+            "Technical model error"
+        ):
 
-# ---------------------------------------------------------
-# Recommendations
-# ---------------------------------------------------------
+            st.exception(model_error)
+
+else:
+
+    st.warning(
+        "Forecast model not found."
+    )
+
+    st.info(
+        f"Expected model location: "
+        f"{FORECAST_MODEL_PATH}"
+    )
+
+
+# ============================================================
+# ANOMALY DETECTION
+# ============================================================
 
 st.markdown(
-    '<div class="section-title">Data-driven recommendations</div>',
+    '<div class="section-title">🚨 Anomaly Detection</div>',
     unsafe_allow_html=True,
 )
 
-if recommendations:
 
-    for recommendation in recommendations[:5]:
+# The realtime power value is displayed here.
+# The final anomaly model can be connected through the
+# existing src/models anomaly detection module once its
+# exact prediction API is used.
 
-        st.markdown(
-            f"""
-            <div class="recommendation-card">
-                {recommendation}
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+if float(power) > 5.0:
+
+    st.error(
+        "⚠️ High energy consumption detected."
+    )
+
+    anomaly_status = "Potential anomaly"
 
 else:
 
     st.success(
-        "No immediate energy-saving action is required."
+        "✅ Current energy consumption appears normal."
     )
 
+    anomaly_status = "Normal"
 
-# ---------------------------------------------------------
-# Live consumption history
-# ---------------------------------------------------------
+
+# ============================================================
+# RECOMMENDATIONS
+# ============================================================
 
 st.markdown(
-    '<div class="section-title">Live consumption trend</div>',
+    '<div class="section-title">💡 Energy-Saving Recommendations</div>',
     unsafe_allow_html=True,
 )
 
-st.session_state.power_history.append(
-    energy["power_kw"]
-)
 
-st.session_state.timestamps.append(
-    energy["timestamp"]
-)
+recommendations = []
 
-# Keep the last 60 observations.
-st.session_state.power_history = (
-    st.session_state.power_history[-60:]
-)
 
-st.session_state.timestamps = (
-    st.session_state.timestamps[-60:]
-)
+# ------------------------------------------------------------
+# Temperature-based recommendation
+# ------------------------------------------------------------
 
-if len(st.session_state.power_history) > 1:
+if temperature is not None:
 
-    chart_df = pd.DataFrame(
-        {
-            "Timestamp": pd.to_datetime(
-                st.session_state.timestamps
-            ),
-            "Power (kW)": (
-                st.session_state.power_history
-            ),
-        }
+    if float(temperature) >= 30:
+
+        recommendations.append(
+            "🌡️ High temperature may increase cooling demand. "
+            "Use air conditioning efficiently and avoid "
+            "unnecessary cooling."
+        )
+
+
+# ------------------------------------------------------------
+# Power-based recommendation
+# ------------------------------------------------------------
+
+if float(power) >= 2:
+
+    recommendations.append(
+        "⚡ Current power consumption is relatively high. "
+        "Check high-consumption appliances and turn off "
+        "devices that are not needed."
     )
 
-    chart_df = chart_df.set_index(
-        "Timestamp"
+
+# ------------------------------------------------------------
+# Anomaly recommendation
+# ------------------------------------------------------------
+
+if anomaly_status != "Normal":
+
+    recommendations.append(
+        "🚨 Investigate the unusual consumption pattern "
+        "and check appliances that may be operating "
+        "unnecessarily."
     )
 
-    st.line_chart(
-        chart_df,
-        height=350,
+
+# ------------------------------------------------------------
+# Default recommendation
+# ------------------------------------------------------------
+
+if not recommendations:
+
+    recommendations.append(
+        "✅ Continue monitoring your consumption and "
+        "avoid leaving unnecessary appliances running."
     )
 
-else:
+
+for recommendation in recommendations:
 
     st.info(
-        "Collecting live measurements..."
+        recommendation
     )
 
 
-# ---------------------------------------------------------
-# Footer / timestamp
-# ---------------------------------------------------------
-
-st.divider()
+# ============================================================
+# SYSTEM SUMMARY
+# ============================================================
 
 st.markdown(
-    f"""
-    <div class="small-text">
-        Last update: {energy['timestamp']} |
-        Data source: live weather API + household simulator |
-        Forecast source: trained historical-data model
-    </div>
-    """,
+    '<div class="section-title">📊 EnergySavvy AI Summary</div>',
     unsafe_allow_html=True,
 )
 
 
-# ---------------------------------------------------------
-# Automatic refresh
-# ---------------------------------------------------------
+summary_df = pd.DataFrame(
+    [
+        {
+            "Metric": "Location",
+            "Value": city,
+        },
+        {
+            "Metric": "Temperature",
+            "Value": (
+                f"{float(temperature):.1f} °C"
+                if temperature is not None
+                else "N/A"
+            ),
+        },
+        {
+            "Metric": "Current Power",
+            "Value": f"{float(power):.3f} kW",
+        },
+        {
+            "Metric": "Voltage",
+            "Value": f"{float(voltage):.1f} V",
+        },
+        {
+            "Metric": "Current",
+            "Value": f"{float(current):.2f} A",
+        },
+        {
+            "Metric": "Anomaly Status",
+            "Value": anomaly_status,
+        },
+    ]
+)
 
-if st.session_state.auto_refresh:
 
-    time.sleep(
-        st.session_state.refresh_seconds
-    )
+st.dataframe(
+    summary_df,
+    use_container_width=True,
+    hide_index=True,
+)
 
-    st.rerun()
+
+# ============================================================
+# FOOTER
+# ============================================================
+
+st.markdown("---")
+
+st.caption(
+    "EnergySavvy AI • RoboDam 2026 • Intelligent Systems"
+)
+
+st.caption(
+    f"Last update: "
+    f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+)
