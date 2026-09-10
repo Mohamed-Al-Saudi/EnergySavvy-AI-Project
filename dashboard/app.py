@@ -379,6 +379,32 @@ st.markdown(
         color: #bbf7d0;
     }
 
+
+    .group-card {
+        background: linear-gradient(155deg, rgba(34, 184, 207, 0.08), rgba(255,255,255,0.015));
+        border: 1px solid rgba(34, 184, 207, 0.18);
+        border-radius: 14px;
+        padding: 16px 18px;
+        margin-bottom: 12px;
+    }
+    .group-card.variable {
+        border-color: rgba(236, 72, 153, 0.18);
+        background: linear-gradient(155deg, rgba(236, 72, 153, 0.07), rgba(255,255,255,0.015));
+    }
+    .group-title {
+        font-size: 14px;
+        font-weight: 800;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        color: #eef1f7;
+        margin-bottom: 5px;
+    }
+    .group-description {
+        font-size: 12.5px;
+        color: #9aa4b8;
+        line-height: 1.55;
+    }
+
     .status-banner.negative {
         background-color: rgba(239, 68, 68, 0.08);
         border-color: rgba(239, 68, 68, 0.3);
@@ -394,36 +420,44 @@ st.markdown(
 # ============================================================
 # STATEFUL, REALISM-CORRECTED APPLIANCE MODEL
 #
-# Categories:
-#   always_on — refrigerator, router: continuous baseline load.
-#   sticky    — air conditioner, television, computer devices:
-#               probability driven by time/temperature, but with
-#               hysteresis so a device that just turned on tends to
-#               stay on for a realistic stretch instead of flickering.
-#   window    — lights, water heater: on mainly within specific hour
-#               windows (evenings/mornings), sticky within that window.
-#   burst     — washing machine, microwave, kettle, vacuum cleaner,
-#               phone chargers: rare, short-lived activations.
+# Two explicit operating groups are used in the live dashboard:
+#
+#   CONTINUOUS / 24H GROUP
+#       refrigerator, washing_machine, stove, water_heater,
+#       router_modem, radio, oven, microwave, deep_freezer, freezer
+#
+#   VARIABLE / TIME-DEPENDENT GROUP
+#       air_conditioner, fans, lamps, phone_chargers, vacuum_cleaner
+#
+# Continuous devices remain active in parallel. Variable devices can
+# turn on/off according to time and temperature and can overlap with
+# one another and with the continuous group.
 # ============================================================
 
 APPLIANCES = {
-    "refrigerator":     {"rated_kw": 0.15, "category": "always_on"},
-    "router_modem":     {"rated_kw": 0.02, "category": "always_on"},
-    "air_conditioner":  {"rated_kw": 1.20, "category": "sticky"},
-    "television":       {"rated_kw": 0.10, "category": "sticky"},
-    "computer_devices": {"rated_kw": 0.08, "category": "sticky"},
-    "lights":           {"rated_kw": 0.12, "category": "window"},
-    "water_heater":     {"rated_kw": 1.50, "category": "window"},
-    "washing_machine":  {"rated_kw": 0.50, "category": "burst", "duration": 6},
-    "microwave":        {"rated_kw": 1.00, "category": "burst", "duration": 1},
-    "kettle":           {"rated_kw": 1.20, "category": "burst", "duration": 1},
-    "vacuum_cleaner":   {"rated_kw": 0.70, "category": "burst", "duration": 4},
-    "phone_chargers":   {"rated_kw": 0.04, "category": "burst", "duration": 10},
+    # -------------------- 24H / CONTINUOUS --------------------
+    "refrigerator":     {"rated_kw": 0.15, "category": "continuous", "group": "24H"},
+    "washing_machine":  {"rated_kw": 0.50, "category": "continuous", "group": "24H"},
+    "stove":            {"rated_kw": 0.80, "category": "continuous", "group": "24H"},
+    "water_heater":     {"rated_kw": 1.50, "category": "continuous", "group": "24H"},
+    "router_modem":     {"rated_kw": 0.02, "category": "continuous", "group": "24H"},
+    "radio":            {"rated_kw": 0.03, "category": "continuous", "group": "24H"},
+    "oven":             {"rated_kw": 1.50, "category": "continuous", "group": "24H"},
+    "microwave":        {"rated_kw": 1.00, "category": "continuous", "group": "24H"},
+    "deep_freezer":     {"rated_kw": 0.20, "category": "continuous", "group": "24H"},
+    "freezer":          {"rated_kw": 0.18, "category": "continuous", "group": "24H"},
+
+    # -------------------- VARIABLE / TIME-DEPENDENT --------------------
+    "air_conditioner": {"rated_kw": 1.20, "category": "variable", "group": "Variable"},
+    "fans":             {"rated_kw": 0.075, "category": "variable", "group": "Variable"},
+    "lamps":            {"rated_kw": 0.12, "category": "variable", "group": "Variable"},
+    "phone_chargers":   {"rated_kw": 0.04, "category": "variable", "group": "Variable"},
+    "vacuum_cleaner":   {"rated_kw": 0.70, "category": "variable", "group": "Variable"},
 }
 
 
 def _target_probability(name: str, hour: int, temperature: float) -> float:
-    """Steady-state likelihood a sticky/window appliance is on."""
+    """Time/temperature dependent probability for variable appliances."""
 
     if name == "air_conditioner":
         if temperature >= 34:
@@ -436,95 +470,72 @@ def _target_probability(name: str, hour: int, temperature: float) -> float:
             return 0.15
         return 0.03
 
-    if name == "television":
-        if 18 <= hour <= 23:
-            return 0.65
-        if 8 <= hour < 18:
-            return 0.35
+    if name == "fans":
+        if temperature >= 32:
+            return 0.75
+        if temperature >= 28:
+            return 0.55
+        if temperature >= 24:
+            return 0.30
         return 0.05
 
-    if name == "computer_devices":
-        if 8 <= hour <= 23:
-            return 0.55
-        return 0.08
-
-    if name == "lights":
+    if name == "lamps":
         if 18 <= hour <= 23 or 0 <= hour < 6:
             return 0.85
         if 6 <= hour < 8:
             return 0.40
         return 0.05
 
-    if name == "water_heater":
-        if hour in (6, 7, 8, 19, 20, 21):
-            return 0.40
-        return 0.04
-
-    return 0.10
-
-
-def _burst_trigger_probability(name: str, hour: int) -> float:
-    """Per-tick chance a burst-category appliance starts a new cycle."""
-
-    if name == "washing_machine":
-        return 0.02 if hour in (8, 9, 10, 17, 18) else 0.004
-    if name == "microwave":
-        return 0.06 if hour in (7, 8, 13, 14, 19, 20, 21) else 0.012
-    if name == "kettle":
-        return 0.07 if hour in (6, 7, 8, 9, 16, 17) else 0.02
-    if name == "vacuum_cleaner":
-        return 0.02 if 9 <= hour <= 17 else 0.002
     if name == "phone_chargers":
-        return 0.14
-    return 0.01
+        if 18 <= hour <= 23:
+            return 0.70
+        if 7 <= hour <= 10:
+            return 0.45
+        return 0.12
+
+    if name == "vacuum_cleaner":
+        return 0.18 if 9 <= hour <= 17 else 0.01
+
+    return 0.05
 
 
 def _advance_appliance(name: str, config: dict, state: dict, hour: int, temperature: float) -> bool:
-    """Advance one appliance's state machine by a single tick."""
+    """Advance one appliance state by a single live tick."""
 
-    category = config["category"]
-    previous = state.get(name, {"on": False, "remaining": 0})
+    previous = state.get(name, {"on": False})
 
-    if category == "always_on":
+    # The 24H group is deliberately always active.
+    if config["category"] == "continuous":
         is_on = True
-
-    elif category in ("sticky", "window"):
-        probability = _target_probability(name, hour, temperature)
-        # Hysteresis: an already-running device is biased to keep running.
-        stay_on_probability = min(0.95, probability + 0.45)
-        is_on = random.random() < (stay_on_probability if previous["on"] else probability)
-
-    elif category == "burst":
-        if previous["remaining"] > 0:
-            is_on = True
-            previous["remaining"] -= 1
-        else:
-            trigger_probability = _burst_trigger_probability(name, hour)
-            if random.random() < trigger_probability:
-                is_on = True
-                previous["remaining"] = config["duration"] - 1
-            else:
-                is_on = False
-
     else:
-        is_on = False
+        probability = _target_probability(name, hour, temperature)
+        # Hysteresis prevents rapid flickering between Active/Standby.
+        stay_on_probability = min(0.95, probability + 0.45)
+        is_on = random.random() < (
+            stay_on_probability if previous.get("on", False) else probability
+        )
 
-    state[name] = {"on": is_on, "remaining": previous.get("remaining", 0)}
+    state[name] = {"on": is_on}
     return is_on
 
 
 def advance_and_generate(state: dict, hour: int, temperature: float, timestamp: datetime | None = None) -> dict:
-    """Advance every appliance by one tick and return a full live reading."""
+    """Advance every appliance and return one complete live household reading."""
 
     timestamp = timestamp or datetime.now()
-
     appliance_data = {}
     total_power_kw = 0.0
 
     for name, config in APPLIANCES.items():
         is_on = _advance_appliance(name, config, state, hour, temperature)
         power = round(config["rated_kw"] * random.uniform(0.90, 1.10), 3) if is_on else 0.0
-        appliance_data[name] = {"on": is_on, "power_kw": power}
+
+        appliance_data[name] = {
+            "on": is_on,
+            "power_kw": power,
+            "group": config["group"],
+            "operating_mode": "24-hour continuous" if config["group"] == "24H" else "time-dependent",
+        }
         total_power_kw += power
 
     voltage = round(random.uniform(220, 240), 2)
@@ -540,8 +551,7 @@ def advance_and_generate(state: dict, hour: int, temperature: float, timestamp: 
 
 
 def _synthetic_hour_temperature(hour: int, anchor_temp: float, anchor_hour: int, swing: float = 6.0) -> float:
-    """Diurnal temperature curve, calibrated so the temperature at
-    anchor_hour equals anchor_temp exactly (peak near 15:00, trough near 03:00)."""
+    """Diurnal temperature curve calibrated to the current live temperature."""
 
     def curve(h):
         return math.cos(2 * math.pi * (h - 15) / 24) * swing
@@ -550,8 +560,7 @@ def _synthetic_hour_temperature(hour: int, anchor_temp: float, anchor_hour: int,
 
 
 def backfill_history(inference_engine, appliance_state: dict, anchor_temp: float, anchor_hour: int, now=None):
-    """Seed inference_engine.power_history with a synthetic week, advancing
-    the same stateful appliance model that will continue live afterward."""
+    """Seed the inference engine with a synthetic week using the same appliance model."""
 
     now = now or datetime.now()
 
@@ -1021,58 +1030,73 @@ if not forecast.get("available"):
 
 st.markdown('<div class="section-title">Appliance Breakdown</div>', unsafe_allow_html=True)
 st.markdown(
-    '<div class="section-caption">Live status of each simulated household appliance</div>',
+    '<div class="section-caption">The simulator explicitly separates continuous 24-hour loads from flexible time-dependent loads. Both groups can operate in parallel.</div>',
     unsafe_allow_html=True,
 )
 
 appliance_rows = [
     {
-        "Appliance": name.replace("_", " ").title(),
+        "Appliance": name.replace("_", " " ).title(),
+        "Operating Group": data.get("group", "Variable"),
+        "Mode": data.get("operating_mode", "time-dependent"),
         "Status": "Active" if data.get("on") else "Standby",
         "Power (kW)": data.get("power_kw", 0.0),
     }
     for name, data in appliances.items()
 ]
-appliance_df = pd.DataFrame(appliance_rows).sort_values("Power (kW)", ascending=False)
-
+appliance_df = pd.DataFrame(appliance_rows)
+continuous_df = appliance_df[appliance_df["Operating Group"] == "24H"].copy()
+variable_df = appliance_df[appliance_df["Operating Group"] == "Variable"].copy()
 active_count = int((appliance_df["Status"] == "Active").sum())
-st.markdown(
-    f'<div class="section-caption" style="padding-left: 4px;">'
-    f'{status_pill(f"{active_count} of {len(appliance_df)} appliances active", "positive" if active_count > 0 else "neutral")}'
-    f"</div>",
-    unsafe_allow_html=True,
-)
+continuous_power = float(continuous_df["Power (kW)"].sum())
+variable_power = float(variable_df["Power (kW)"].sum())
 
-a1, a2 = st.columns([1, 1])
+c1, c2, c3 = st.columns(3)
+with c1:
+    st.markdown(
+        f"""<div class=\"group-card\"><div class=\"group-title\">24-hour continuous</div><div class=\"group-description\">{len(continuous_df)} appliances · always active · can operate in parallel · current load {continuous_power:.3f} kW</div></div>""",
+        unsafe_allow_html=True,
+    )
+with c2:
+    st.markdown(
+        f"""<div class=\"group-card variable\"><div class=\"group-title\">Time-dependent</div><div class=\"group-description\">{len(variable_df)} appliances · may turn on/off by time and temperature · can overlap with each other and the 24H group · current load {variable_power:.3f} kW</div></div>""",
+        unsafe_allow_html=True,
+    )
+with c3:
+    st.markdown(
+        f"""<div class=\"group-card\"><div class=\"group-title\">Live household</div><div class=\"group-description\">{active_count} of {len(appliance_df)} appliances active · total instantaneous load {power_kw:.3f} kW</div></div>""",
+        unsafe_allow_html=True,
+    )
 
-with a1:
-    st.dataframe(appliance_df, use_container_width=True, hide_index=True)
+st.markdown('<div class="card-label" style="padding-left: 4px;">24-hour continuous devices</div>', unsafe_allow_html=True)
+st.dataframe(continuous_df[["Appliance", "Status", "Power (kW)"]], use_container_width=True, hide_index=True)
 
-with a2:
-    active_df = appliance_df[appliance_df["Power (kW)"] > 0]
-    if not active_df.empty:
-        bar_fig = go.Figure(
-            go.Bar(
-                x=active_df["Power (kW)"],
-                y=active_df["Appliance"],
-                orientation="h",
-                marker=dict(
-                    color=active_df["Power (kW)"],
-                    colorscale=[[0, "#8b5cf6"], [0.5, "#ec4899"], [1, "#f97316"]],
-                ),
-            )
-        )
-        bar_fig.update_layout(
-            height=300,
-            margin=dict(l=10, r=10, t=10, b=10),
-            plot_bgcolor="rgba(0,0,0,0)",
-            paper_bgcolor="rgba(0,0,0,0)",
-            font=dict(color="#cbd5e1"),
-            xaxis=dict(title="kW", gridcolor="rgba(148,163,184,0.15)"),
-        )
-        st.plotly_chart(bar_fig, use_container_width=True)
-    else:
-        st.info("No appliances are currently drawing power.")
+st.markdown('<div class="card-label" style="padding-left: 4px; margin-top: 12px;">Time-dependent devices</div>', unsafe_allow_html=True)
+st.dataframe(variable_df[["Appliance", "Status", "Power (kW)"]], use_container_width=True, hide_index=True)
+
+st.markdown('<div class="card-label" style="padding-left: 4px; margin-top: 12px;">Current load contribution</div>', unsafe_allow_html=True)
+active_df = appliance_df[appliance_df["Power (kW)"] > 0].sort_values("Power (kW)", ascending=True)
+if not active_df.empty:
+    bar_fig = go.Figure(go.Bar(
+        x=active_df["Power (kW)"],
+        y=active_df["Appliance"],
+        orientation="h",
+        marker=dict(color=active_df["Power (kW)"], colorscale=[[0, "#22b8cf"], [0.5, "#8b5cf6"], [1, "#ec4899"]]),
+        customdata=active_df[["Operating Group"]],
+        hovertemplate="%{y}<br>Power: %{x:.3f} kW<br>Group: %{customdata[0]}<extra></extra>",
+    ))
+    bar_fig.update_layout(
+        height=430,
+        margin=dict(l=10, r=10, t=10, b=10),
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)",
+        font=dict(color="#cbd5e1"),
+        xaxis=dict(title="Instantaneous kW", gridcolor="rgba(148,163,184,0.15)"),
+        yaxis=dict(title="", showgrid=False),
+    )
+    st.plotly_chart(bar_fig, use_container_width=True)
+else:
+    st.info("No appliances are currently drawing power.")
 
 
 # ============================================================
