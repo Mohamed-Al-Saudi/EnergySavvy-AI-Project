@@ -4,22 +4,36 @@ EnergySavvy AI
 Final Streamlit deployment application.
 
 Pipeline:
-    Live Location (ipapi.co)
+    Live Location
         -> Open-Meteo Weather
         -> RealtimeEngine
-        -> EnergySimulator
+        -> EnergySimulator (stateful, realism-corrected — see note below)
         -> Forecast Model (forecast_rf.pkl)
         -> Anomaly Detection
         -> Recommendations
         -> Streamlit Dashboard
 
-IMPORTANT:
+IMPORTANT — training data vs. live data:
     The UCI Household Power Consumption dataset and the Cairo Weather
     dataset were used ONLY to train forecast_rf.pkl (see notebooks/).
     Nothing in this file reads those historical CSVs. Everything shown
-    here is generated live: real weather, real location, and a live
-    household simulator whose output is fed straight into the trained
-    model.
+    here is generated live: real weather, a real, presenter-selected
+    Egyptian location, and a live household simulator whose output is
+    fed straight into the trained model.
+
+NOTE on the appliance simulator:
+    The original EnergySimulator.generate() draws each appliance's
+    on/off state independently on every call, with no memory of the
+    previous state. In practice this meant that, at any given instant,
+    only the appliances with a high standalone probability (mainly the
+    refrigerator) were ever shown "on" — real appliances do not behave
+    this way. A refrigerator and router run continuously; an air
+    conditioner, once triggered by heat, keeps running for a while; a
+    kettle or vacuum cleaner runs briefly and then stops. To reflect
+    that, this file implements a stateful appliance model (persistence
+    / hysteresis across ticks, categorized by usage pattern) that is
+    used for both the live feed and the historical backfill below.
+    EnergySimulator itself is left untouched in src/.
 
 Run locally (from the project root):
     streamlit run dashboard/app.py
@@ -39,10 +53,6 @@ import streamlit as st
 # ============================================================
 # PROJECT PATHS
 # ============================================================
-# dashboard/app.py lives at <project_root>/dashboard/app.py, so the
-# project root is one level up. We add it to sys.path so `src.*`
-# imports work no matter what directory `streamlit run` is launched
-# from.
 
 APP_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = APP_DIR.parent
@@ -58,10 +68,8 @@ FORECAST_MODEL_PATH = PROJECT_ROOT / "models" / "forecast_rf.pkl"
 
 from src.realtime.realtime_engine import RealtimeEngine
 from src.realtime.inference_engine import InferenceEngine
+from src.realtime.weather_api import get_current_weather, get_location_by_ip
 
-# Optional auto-refresh. The app still works without it (a manual
-# refresh button appears instead), so a missing dependency never
-# takes the dashboard down during a live demonstration.
 try:
     from streamlit_autorefresh import st_autorefresh
     HAS_AUTOREFRESH = True
@@ -79,6 +87,61 @@ REFRESH_INTERVAL_SECONDS = 8
 HISTORY_BACKFILL_HOURS = 168  # One week of hourly points, matches lag_168
 CHART_HISTORY_POINTS = 60
 
+# Major Egyptian cities with accurate coordinates, so the live weather
+# reflects the presenter's actual demo location rather than wherever
+# the hosting server happens to be. IP-based geolocation is offered as
+# a secondary option, with a clear caveat (see sidebar).
+EGYPT_CITIES = {
+    "Cairo": (30.0444, 31.2357),
+    "Giza": (30.0131, 31.2089),
+    "Alexandria": (31.2001, 29.9187),
+    "Mansoura": (31.0409, 31.3785),
+    "Tanta": (30.7865, 31.0004),
+    "Ismailia": (30.5965, 32.2715),
+    "Port Said": (31.2653, 32.3019),
+    "Luxor": (25.6872, 32.6396),
+    "Aswan": (24.0889, 32.8998),
+    "Sharm El Sheikh": (27.9158, 34.3300),
+}
+
+# Official EgyptERA residential tariff (2026), cumulative tiers.
+# Source: Egyptian Electricity Holding Company / EgyptERA published
+# rates. Provided for illustration; actual bills may include
+# additional fixed fees and should be verified against the latest
+# official schedule.
+TARIFF_TIERS_EGP_PER_KWH = [
+    (50, 0.68),
+    (100, 0.95),
+    (200, 1.15),
+    (350, 1.72),
+    (650, 2.18),
+    (1000, 2.40),
+    (float("inf"), 2.58),
+]
+
+
+def calculate_bill_egp(monthly_kwh: float) -> float:
+    """Cumulative tiered bill calculation using the EgyptERA schedule."""
+
+    if monthly_kwh <= 0:
+        return 0.0
+
+    remaining = monthly_kwh
+    cost = 0.0
+    previous_cap = 0
+
+    for cap, rate in TARIFF_TIERS_EGP_PER_KWH:
+        band_width = remaining if cap == float("inf") else min(remaining, cap - previous_cap)
+        if band_width <= 0:
+            break
+        cost += band_width * rate
+        remaining -= band_width
+        previous_cap = cap
+        if remaining <= 0:
+            break
+
+    return cost
+
 
 # ============================================================
 # STREAMLIT PAGE CONFIGURATION
@@ -92,11 +155,10 @@ st.set_page_config(
 
 
 # ============================================================
-# STYLE
+# STYLE — dark, professional, with a slow-moving gradient backdrop
+# and glass-panel cards so the interface reads as active rather than
+# static, without sacrificing formality.
 # ============================================================
-# A restrained, formal palette: deep slate background tones, a single
-# cyan accent for emphasis, muted status colors, and no iconography
-# beyond simple geometric indicators (dots, pills, bars).
 
 st.markdown(
     """
@@ -106,27 +168,52 @@ st.markdown(
         font-family: "Segoe UI", "Inter", "Helvetica Neue", Arial, sans-serif;
     }
 
+    :root {
+        --accent-1: #8b5cf6;
+        --accent-2: #ec4899;
+        --accent-3: #f97316;
+        --accent-4: #22b8cf;
+    }
+
+    .stApp {
+        background-color: #0b0b16;
+        background-image:
+            radial-gradient(at 15% 20%, rgba(139, 92, 246, 0.22) 0px, transparent 55%),
+            radial-gradient(at 85% 15%, rgba(236, 72, 153, 0.18) 0px, transparent 55%),
+            radial-gradient(at 50% 90%, rgba(34, 184, 207, 0.14) 0px, transparent 55%);
+        background-attachment: fixed;
+        background-size: 200% 200%;
+        animation: bgDrift 24s ease-in-out infinite alternate;
+    }
+
+    @keyframes bgDrift {
+        0%   { background-position: 0% 0%, 100% 0%, 50% 100%; }
+        100% { background-position: 15% 15%, 85% 20%, 55% 85%; }
+    }
+
     .eyebrow {
         font-size: 12px;
         letter-spacing: 3px;
         text-transform: uppercase;
-        color: #7c8798;
+        color: #9aa4b8;
         font-weight: 600;
         margin-bottom: 4px;
     }
 
     .main-title {
-        font-size: 40px;
-        font-weight: 700;
+        font-size: 42px;
+        font-weight: 800;
         letter-spacing: -0.5px;
         margin-bottom: 4px;
-        color: #eef2f7;
+        background: linear-gradient(100deg, var(--accent-1), var(--accent-2) 55%, var(--accent-3));
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
     }
 
     .subtitle {
         font-size: 15px;
-        color: #9aa4b2;
-        margin-bottom: 22px;
+        color: #a3aec2;
+        margin-bottom: 20px;
         display: flex;
         align-items: center;
     }
@@ -149,23 +236,67 @@ st.markdown(
     }
 
     .section-title {
-        font-size: 20px;
+        font-size: 21px;
         font-weight: 700;
-        color: #e6eaf0;
+        color: #eef1f7;
         margin-top: 34px;
         margin-bottom: 4px;
-        border-left: 3px solid #22b8cf;
+        border-left: 3px solid var(--accent-4);
         padding-left: 12px;
     }
 
     .section-caption {
         font-size: 13px;
-        color: #7c8798;
-        margin-bottom: 14px;
+        color: #8b96ab;
+        margin-bottom: 16px;
         padding-left: 15px;
     }
 
-    /* KPI cards */
+    /* Glass panel cards */
+    .glass-card {
+        background: linear-gradient(155deg, rgba(255,255,255,0.055), rgba(255,255,255,0.015));
+        border: 1px solid rgba(255,255,255,0.09);
+        border-radius: 14px;
+        padding: 20px 22px;
+        height: 100%;
+        transition: border-color 0.3s ease, transform 0.3s ease;
+    }
+
+    .glass-card:hover {
+        border-color: rgba(139, 92, 246, 0.5);
+        transform: translateY(-2px);
+    }
+
+    .card-label {
+        font-size: 12px;
+        letter-spacing: 1.5px;
+        text-transform: uppercase;
+        color: #8b96ab;
+        font-weight: 700;
+        margin-bottom: 10px;
+    }
+
+    .card-value {
+        font-size: 30px;
+        font-weight: 800;
+        line-height: 1.15;
+        background: linear-gradient(90deg, var(--accent-1), var(--accent-2));
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+
+    .card-value.plain {
+        background: none;
+        -webkit-text-fill-color: #eef1f7;
+        color: #eef1f7;
+    }
+
+    .card-sub {
+        font-size: 12.5px;
+        color: #9aa4b8;
+        margin-top: 8px;
+    }
+
     .kpi-row {
         display: flex;
         gap: 16px;
@@ -173,40 +304,9 @@ st.markdown(
         margin-bottom: 6px;
     }
 
-    .kpi-card {
+    .kpi-row > div {
         flex: 1;
         min-width: 190px;
-        background: linear-gradient(155deg, rgba(255,255,255,0.045), rgba(255,255,255,0.015));
-        border: 1px solid rgba(255,255,255,0.08);
-        border-radius: 12px;
-        padding: 18px 20px;
-        transition: border-color 0.3s ease;
-    }
-
-    .kpi-card:hover {
-        border-color: rgba(34, 184, 207, 0.45);
-    }
-
-    .kpi-label {
-        font-size: 12px;
-        letter-spacing: 1.5px;
-        text-transform: uppercase;
-        color: #7c8798;
-        font-weight: 600;
-        margin-bottom: 8px;
-    }
-
-    .kpi-value {
-        font-size: 28px;
-        font-weight: 700;
-        color: #eef2f7;
-        line-height: 1.1;
-    }
-
-    .kpi-sub {
-        font-size: 12.5px;
-        color: #8b96a5;
-        margin-top: 6px;
     }
 
     /* Status pills */
@@ -215,34 +315,34 @@ st.markdown(
         padding: 3px 12px;
         border-radius: 999px;
         font-size: 12.5px;
-        font-weight: 600;
+        font-weight: 700;
         letter-spacing: 0.3px;
     }
 
     .pill-positive {
-        background-color: rgba(34, 197, 94, 0.14);
+        background-color: rgba(34, 197, 94, 0.16);
         color: #4ade80;
         border: 1px solid rgba(34, 197, 94, 0.35);
     }
 
     .pill-negative {
-        background-color: rgba(239, 68, 68, 0.14);
+        background-color: rgba(239, 68, 68, 0.16);
         color: #f87171;
         border: 1px solid rgba(239, 68, 68, 0.35);
     }
 
     .pill-neutral {
-        background-color: rgba(148, 163, 184, 0.14);
+        background-color: rgba(148, 163, 184, 0.16);
         color: #cbd5e1;
         border: 1px solid rgba(148, 163, 184, 0.30);
     }
 
     /* Recommendation / advisory cards */
     .rec-card {
-        background-color: rgba(34, 184, 207, 0.07);
-        border-left: 3px solid #22b8cf;
+        background-color: rgba(139, 92, 246, 0.08);
+        border-left: 3px solid var(--accent-1);
         padding: 13px 16px;
-        border-radius: 8px;
+        border-radius: 10px;
         margin-bottom: 10px;
         font-size: 14.5px;
         color: #dce3ec;
@@ -257,9 +357,9 @@ st.markdown(
         font-size: 11px;
         letter-spacing: 1px;
         text-transform: uppercase;
-        font-weight: 700;
+        font-weight: 800;
         margin-right: 8px;
-        color: #22b8cf;
+        color: var(--accent-1);
     }
 
     .rec-card.alert .rec-tag {
@@ -267,7 +367,7 @@ st.markdown(
     }
 
     .status-banner {
-        border-radius: 10px;
+        border-radius: 12px;
         padding: 16px 20px;
         font-size: 15px;
         border: 1px solid rgba(255,255,255,0.08);
@@ -285,44 +385,161 @@ st.markdown(
         color: #fecaca;
     }
 
-    .status-banner.neutral {
-        background-color: rgba(148, 163, 184, 0.08);
-        color: #cbd5e1;
-    }
-
     </style>
     """,
     unsafe_allow_html=True,
 )
 
 
-def status_pill(text: str, kind: str = "neutral") -> str:
-    """Return an inline HTML status badge (kind: positive, negative, neutral)."""
-    return f'<span class="pill pill-{kind}">{text}</span>'
-
-
 # ============================================================
-# SIMULATED-HISTORY BACKFILL
+# STATEFUL, REALISM-CORRECTED APPLIANCE MODEL
 #
-# The trained forecast model requires 168 chronological hourly power
-# readings (lag_1 through lag_168, plus rolling statistics) before it
-# can produce a prediction, and 24 readings before anomaly detection
-# has a baseline. Rather than requiring a full week of wall-clock time
-# before any output is available, the application seeds the
-# InferenceEngine's history with 168 synthetic hourly points generated
-# using the same equation-based logic as EnergySimulator (appliance
-# probability curves keyed by hour-of-day and temperature). A diurnal
-# temperature curve, anchored to the current live temperature, drives
-# realistic hour-to-hour variation without requiring a historical
-# weather API call.
+# Categories:
+#   always_on — refrigerator, router: continuous baseline load.
+#   sticky    — air conditioner, television, computer devices:
+#               probability driven by time/temperature, but with
+#               hysteresis so a device that just turned on tends to
+#               stay on for a realistic stretch instead of flickering.
+#   window    — lights, water heater: on mainly within specific hour
+#               windows (evenings/mornings), sticky within that window.
+#   burst     — washing machine, microwave, kettle, vacuum cleaner,
+#               phone chargers: rare, short-lived activations.
 # ============================================================
 
-def _synthetic_hour_temperature(
-    hour: int,
-    anchor_temp: float,
-    anchor_hour: int,
-    swing: float = 6.0,
-) -> float:
+APPLIANCES = {
+    "refrigerator":     {"rated_kw": 0.15, "category": "always_on"},
+    "router_modem":     {"rated_kw": 0.02, "category": "always_on"},
+    "air_conditioner":  {"rated_kw": 1.20, "category": "sticky"},
+    "television":       {"rated_kw": 0.10, "category": "sticky"},
+    "computer_devices": {"rated_kw": 0.08, "category": "sticky"},
+    "lights":           {"rated_kw": 0.12, "category": "window"},
+    "water_heater":     {"rated_kw": 1.50, "category": "window"},
+    "washing_machine":  {"rated_kw": 0.50, "category": "burst", "duration": 6},
+    "microwave":        {"rated_kw": 1.00, "category": "burst", "duration": 1},
+    "kettle":           {"rated_kw": 1.20, "category": "burst", "duration": 1},
+    "vacuum_cleaner":   {"rated_kw": 0.70, "category": "burst", "duration": 4},
+    "phone_chargers":   {"rated_kw": 0.04, "category": "burst", "duration": 10},
+}
+
+
+def _target_probability(name: str, hour: int, temperature: float) -> float:
+    """Steady-state likelihood a sticky/window appliance is on."""
+
+    if name == "air_conditioner":
+        if temperature >= 34:
+            return 0.92
+        if temperature >= 30:
+            return 0.75
+        if temperature >= 26:
+            return 0.45
+        if temperature >= 22:
+            return 0.15
+        return 0.03
+
+    if name == "television":
+        if 18 <= hour <= 23:
+            return 0.65
+        if 8 <= hour < 18:
+            return 0.35
+        return 0.05
+
+    if name == "computer_devices":
+        if 8 <= hour <= 23:
+            return 0.55
+        return 0.08
+
+    if name == "lights":
+        if 18 <= hour <= 23 or 0 <= hour < 6:
+            return 0.85
+        if 6 <= hour < 8:
+            return 0.40
+        return 0.05
+
+    if name == "water_heater":
+        if hour in (6, 7, 8, 19, 20, 21):
+            return 0.40
+        return 0.04
+
+    return 0.10
+
+
+def _burst_trigger_probability(name: str, hour: int) -> float:
+    """Per-tick chance a burst-category appliance starts a new cycle."""
+
+    if name == "washing_machine":
+        return 0.02 if hour in (8, 9, 10, 17, 18) else 0.004
+    if name == "microwave":
+        return 0.06 if hour in (7, 8, 13, 14, 19, 20, 21) else 0.012
+    if name == "kettle":
+        return 0.07 if hour in (6, 7, 8, 9, 16, 17) else 0.02
+    if name == "vacuum_cleaner":
+        return 0.02 if 9 <= hour <= 17 else 0.002
+    if name == "phone_chargers":
+        return 0.14
+    return 0.01
+
+
+def _advance_appliance(name: str, config: dict, state: dict, hour: int, temperature: float) -> bool:
+    """Advance one appliance's state machine by a single tick."""
+
+    category = config["category"]
+    previous = state.get(name, {"on": False, "remaining": 0})
+
+    if category == "always_on":
+        is_on = True
+
+    elif category in ("sticky", "window"):
+        probability = _target_probability(name, hour, temperature)
+        # Hysteresis: an already-running device is biased to keep running.
+        stay_on_probability = min(0.95, probability + 0.45)
+        is_on = random.random() < (stay_on_probability if previous["on"] else probability)
+
+    elif category == "burst":
+        if previous["remaining"] > 0:
+            is_on = True
+            previous["remaining"] -= 1
+        else:
+            trigger_probability = _burst_trigger_probability(name, hour)
+            if random.random() < trigger_probability:
+                is_on = True
+                previous["remaining"] = config["duration"] - 1
+            else:
+                is_on = False
+
+    else:
+        is_on = False
+
+    state[name] = {"on": is_on, "remaining": previous.get("remaining", 0)}
+    return is_on
+
+
+def advance_and_generate(state: dict, hour: int, temperature: float, timestamp: datetime | None = None) -> dict:
+    """Advance every appliance by one tick and return a full live reading."""
+
+    timestamp = timestamp or datetime.now()
+
+    appliance_data = {}
+    total_power_kw = 0.0
+
+    for name, config in APPLIANCES.items():
+        is_on = _advance_appliance(name, config, state, hour, temperature)
+        power = round(config["rated_kw"] * random.uniform(0.90, 1.10), 3) if is_on else 0.0
+        appliance_data[name] = {"on": is_on, "power_kw": power}
+        total_power_kw += power
+
+    voltage = round(random.uniform(220, 240), 2)
+    current = round((total_power_kw * 1000) / voltage, 2) if voltage > 0 else 0.0
+
+    return {
+        "timestamp": timestamp.isoformat(),
+        "voltage_v": voltage,
+        "current_a": current,
+        "power_kw": round(total_power_kw, 3),
+        "appliances": appliance_data,
+    }
+
+
+def _synthetic_hour_temperature(hour: int, anchor_temp: float, anchor_hour: int, swing: float = 6.0) -> float:
     """Diurnal temperature curve, calibrated so the temperature at
     anchor_hour equals anchor_temp exactly (peak near 15:00, trough near 03:00)."""
 
@@ -332,93 +549,52 @@ def _synthetic_hour_temperature(
     return anchor_temp + curve(hour) - curve(anchor_hour)
 
 
-def _simulate_power_for_hour(simulator, hour: int, temperature: float) -> float:
-    """Reproduce EnergySimulator's own probability model for an
-    arbitrary historical hour. EnergySimulator.generate() only ever
-    uses datetime.now(), so this reuses its appliance table and
-    probability function directly for backfill purposes."""
-
-    total_power_kw = 0.0
-
-    for name, config in simulator.appliances.items():
-        probability = simulator._get_probability(name, hour, temperature)
-
-        if random.random() < probability:
-            total_power_kw += config["rated_power_kw"] * random.uniform(0.90, 1.10)
-
-    return round(total_power_kw, 3)
-
-
-def backfill_history(inference_engine, simulator, anchor_temp, anchor_hour, now=None):
-    """Seed inference_engine.power_history with a synthetic week so
-    forecasting and anomaly detection are available immediately."""
+def backfill_history(inference_engine, appliance_state: dict, anchor_temp: float, anchor_hour: int, now=None):
+    """Seed inference_engine.power_history with a synthetic week, advancing
+    the same stateful appliance model that will continue live afterward."""
 
     now = now or datetime.now()
 
     for hours_ago in range(HISTORY_BACKFILL_HOURS, 0, -1):
         ts = now - timedelta(hours=hours_ago)
         temp = _synthetic_hour_temperature(ts.hour, anchor_temp, anchor_hour)
-        power = _simulate_power_for_hour(simulator, ts.hour, temp)
-        inference_engine.add_measurement(power)
+        reading = advance_and_generate(appliance_state, ts.hour, temp, timestamp=ts)
+        inference_engine.add_measurement(reading["power_kw"])
+
+
+def status_pill(text: str, kind: str = "neutral") -> str:
+    return f'<span class="pill pill-{kind}">{text}</span>'
 
 
 # ============================================================
-# CACHED ENGINE INITIALIZATION
-# (created once per server process, shared across reruns)
+# SHARED, PROCESS-WIDE STATE
+#
+# Everyone viewing this deployment — the main screen and any judge
+# who scans the QR code — watches the SAME simulated household, not
+# an independent random copy of it. That requires the engines, the
+# appliance state machine, and the chart history all live in a single
+# process-wide cache rather than per-browser session state.
 # ============================================================
 
-@st.cache_resource(show_spinner="Resolving location and connecting to live weather data...")
+@st.cache_resource(show_spinner="Initializing the live energy system...")
+def get_shared_state():
+    return {"appliance_state": {}, "chart_history": []}
+
+
+@st.cache_resource(show_spinner=False)
 def get_realtime_engine():
-    return RealtimeEngine(auto_location=True)
+    return RealtimeEngine(auto_location=False)
 
 
-@st.cache_resource(show_spinner="Initializing the forecasting model with historical context...")
-def get_inference_engine(_realtime_engine):
+@st.cache_resource(show_spinner="Warming up the forecasting model with a week of history...")
+def get_inference_engine(_shared, anchor_temp, anchor_hour):
     engine = InferenceEngine(model_path=str(FORECAST_MODEL_PATH))
-
-    seed_live = _realtime_engine.get_live_data()
-    seed_temp = seed_live["weather"]["temperature_c"]
-    seed_hour = datetime.now().hour
-
-    backfill_history(engine, _realtime_engine.simulator, seed_temp, seed_hour)
-
+    backfill_history(engine, _shared["appliance_state"], anchor_temp, anchor_hour)
     return engine
 
 
-try:
-    realtime_engine = get_realtime_engine()
-    inference_engine = get_inference_engine(realtime_engine)
-except Exception as e:
-    st.error("Unable to initialize the live energy system.")
-    st.exception(e)
-    st.stop()
-
-
-# ============================================================
-# HEADER
-# ============================================================
-
-header_col, qr_col = st.columns([3, 1])
-
-with header_col:
-    st.markdown('<div class="eyebrow">Intelligent Energy Systems</div>', unsafe_allow_html=True)
-    st.markdown('<div class="main-title">EnergySavvy AI</div>', unsafe_allow_html=True)
-    st.markdown(
-        '<div class="subtitle">'
-        '<span class="live-dot"></span>'
-        "Live forecasting, anomaly detection, and recommendations for real Egyptian households"
-        "</div>",
-        unsafe_allow_html=True,
-    )
-
-with qr_col:
-    if HAS_QRCODE:
-        app_url = st.session_state.get("app_url", "")
-        if app_url:
-            qr_img = qrcode.make(app_url)
-            buf = io.BytesIO()
-            qr_img.save(buf, format="PNG")
-            st.image(buf.getvalue(), caption="Scan to open on a mobile device", width=110)
+shared = get_shared_state()
+realtime_engine = get_realtime_engine()
 
 
 # ============================================================
@@ -432,7 +608,7 @@ st.sidebar.markdown(
     """
     **Live data pipeline**
 
-    1. IP-based location (ipapi.co)
+    1. Location (selected below)
     2. Open-Meteo live weather
     3. Real-time household simulator
     4. Forecast model (trained on UCI + Cairo data)
@@ -440,6 +616,32 @@ st.sidebar.markdown(
     6. Recommendation engine
     """
 )
+
+st.sidebar.markdown("---")
+st.sidebar.markdown("**Household location**")
+
+location_choice = st.sidebar.selectbox(
+    "Select the demo location",
+    options=list(EGYPT_CITIES.keys()) + ["Detect automatically (IP-based)"],
+    index=0,
+    label_visibility="collapsed",
+)
+
+if location_choice == "Detect automatically (IP-based)":
+    st.sidebar.caption(
+        "IP-based detection reflects the server's network location, which "
+        "may differ from the presenter's physical location. Prefer a "
+        "manual selection for live demonstrations."
+    )
+    detected = get_location_by_ip()
+    active_lat = detected["latitude"]
+    active_lon = detected["longitude"]
+    active_city = detected["city"]
+else:
+    active_lat, active_lon = EGYPT_CITIES[location_choice]
+    active_city = location_choice
+
+realtime_engine.update_location(active_lat, active_lon, active_city)
 
 st.sidebar.markdown("---")
 
@@ -461,6 +663,10 @@ else:
         st.rerun()
 
 st.sidebar.markdown("---")
+st.sidebar.caption(
+    "Electricity costs are estimated using the official EgyptERA "
+    "residential tariff (2026 schedule)."
+)
 st.sidebar.caption("EnergySavvy AI  |  Intelligent Systems")
 
 
@@ -469,29 +675,43 @@ st.sidebar.caption("EnergySavvy AI  |  Intelligent Systems")
 # ============================================================
 
 try:
-    live_data = realtime_engine.get_live_data()
+    weather = get_current_weather(active_lat, active_lon)
 except Exception as e:
-    st.error("Unable to retrieve live weather or location data.")
+    st.error("Unable to retrieve live weather data.")
     st.exception(e)
     st.stop()
 
-weather = live_data["weather"]
-energy = live_data["energy"]
-location = live_data["location"]
+now = datetime.now()
 
-city = location.get("city", "Unknown")
-latitude = location.get("lat")
-longitude = location.get("lon")
+try:
+    inference_engine = get_inference_engine(shared, weather["temperature_c"], now.hour)
+except Exception as e:
+    st.error("Unable to initialize the forecasting model.")
+    st.exception(e)
+    st.stop()
+
+energy = advance_and_generate(shared["appliance_state"], now.hour, weather["temperature_c"], timestamp=now)
+
+city = active_city
+latitude = active_lat
+longitude = active_lon
 
 temperature = weather.get("temperature_c")
 humidity = weather.get("humidity_percent")
 wind_speed = weather.get("wind_speed_kmh")
 
-power_kw = energy.get("power_kw", 0.0)
-voltage_v = energy.get("voltage_v", 0.0)
-current_a = energy.get("current_a", 0.0)
-appliances = energy.get("appliances", {})
-reading_time = energy.get("timestamp")
+power_kw = energy["power_kw"]
+voltage_v = energy["voltage_v"]
+current_a = energy["current_a"]
+appliances = energy["appliances"]
+reading_time = energy["timestamp"]
+
+live_data = {
+    "timestamp": reading_time,
+    "weather": weather,
+    "energy": energy,
+    "location": {"city": city, "lat": latitude, "lon": longitude},
+}
 
 try:
     ai_results = inference_engine.process(live_data)
@@ -506,13 +726,29 @@ recommendations = ai_results["recommendations"]
 
 
 # ============================================================
-# ROLLING CLIENT-SIDE CHART HISTORY (per browser session)
+# COST-OF-BILL PROJECTION
 # ============================================================
 
-if "chart_history" not in st.session_state:
-    st.session_state.chart_history = []
+baseline_kw = anomaly.get("baseline_kw") if anomaly.get("available") else power_kw
+projected_daily_kwh = baseline_kw * 24
+projected_monthly_kwh = projected_daily_kwh * 30
+projected_monthly_bill_egp = calculate_bill_egp(projected_monthly_kwh)
+effective_rate = (
+    projected_monthly_bill_egp / projected_monthly_kwh
+    if projected_monthly_kwh > 0
+    else TARIFF_TIERS_EGP_PER_KWH[0][1]
+)
+projected_daily_bill_egp = projected_daily_kwh * effective_rate
+next_hour_cost_egp = (
+    forecast["prediction_kw"] * effective_rate if forecast.get("available") else None
+)
 
-st.session_state.chart_history.append(
+
+# ============================================================
+# ROLLING SHARED CHART HISTORY
+# ============================================================
+
+shared["chart_history"].append(
     {
         "time": datetime.fromisoformat(reading_time),
         "power_kw": power_kw,
@@ -520,9 +756,37 @@ st.session_state.chart_history.append(
         "is_anomaly": anomaly.get("is_anomaly", False),
     }
 )
-st.session_state.chart_history = st.session_state.chart_history[-CHART_HISTORY_POINTS:]
+shared["chart_history"] = shared["chart_history"][-CHART_HISTORY_POINTS:]
 
-chart_df = pd.DataFrame(st.session_state.chart_history)
+chart_df = pd.DataFrame(shared["chart_history"])
+
+
+# ============================================================
+# HEADER
+# ============================================================
+
+header_col, qr_col = st.columns([3, 1])
+
+with header_col:
+    st.markdown('<div class="eyebrow">Intelligent Energy Systems</div>', unsafe_allow_html=True)
+    st.markdown('<div class="main-title">EnergySavvy AI</div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="subtitle">'
+        '<span class="live-dot"></span>'
+        "Live forecasting, anomaly detection, and cost-aware recommendations "
+        f"for a household in {city}"
+        "</div>",
+        unsafe_allow_html=True,
+    )
+
+with qr_col:
+    if HAS_QRCODE:
+        app_url = st.session_state.get("app_url", "")
+        if app_url:
+            qr_img = qrcode.make(app_url)
+            buf = io.BytesIO()
+            qr_img.save(buf, format="PNG")
+            st.image(buf.getvalue(), caption="Scan to open on a mobile device", width=110)
 
 
 # ============================================================
@@ -535,32 +799,26 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-forecast_value = f"{forecast['prediction_kw']:.3f} kW" if forecast.get("available") else "Initializing"
 humidity_sub = f"{humidity:.0f}% relative humidity" if humidity is not None else "Humidity unavailable"
 temperature_display = f"{float(temperature):.1f}\u00b0C" if temperature is not None else "N/A"
 
 st.markdown(
     f"""
     <div class="kpi-row">
-        <div class="kpi-card">
-            <div class="kpi-label">Location</div>
-            <div class="kpi-value">{city}</div>
-            <div class="kpi-sub">Resolved from live IP geolocation</div>
+        <div class="glass-card">
+            <div class="card-label">Location</div>
+            <div class="card-value plain">{city}</div>
+            <div class="card-sub">Live weather anchored to this location</div>
         </div>
-        <div class="kpi-card">
-            <div class="kpi-label">Temperature</div>
-            <div class="kpi-value">{temperature_display}</div>
-            <div class="kpi-sub">{humidity_sub}</div>
+        <div class="glass-card">
+            <div class="card-label">Temperature</div>
+            <div class="card-value plain">{temperature_display}</div>
+            <div class="card-sub">{humidity_sub} &nbsp;|&nbsp; wind {wind_speed:.1f} km/h</div>
         </div>
-        <div class="kpi-card">
-            <div class="kpi-label">Current Power Draw</div>
-            <div class="kpi-value">{power_kw:.3f} kW</div>
-            <div class="kpi-sub">{voltage_v:.1f} V &nbsp;|&nbsp; {current_a:.2f} A</div>
-        </div>
-        <div class="kpi-card">
-            <div class="kpi-label">Forecast, Next Hour</div>
-            <div class="kpi-value">{forecast_value}</div>
-            <div class="kpi-sub">Random forest regression model</div>
+        <div class="glass-card">
+            <div class="card-label">Current Power Draw</div>
+            <div class="card-value">{power_kw:.3f} kW</div>
+            <div class="card-sub">{voltage_v:.1f} V &nbsp;|&nbsp; {current_a:.2f} A</div>
         </div>
     </div>
     """,
@@ -577,6 +835,127 @@ with st.expander("Environment details"):
         st.write("**Longitude:**", longitude)
         st.write("**Humidity:**", f"{humidity:.0f}%" if humidity is not None else "N/A")
         st.write("**Reading time:**", reading_time)
+
+
+# ============================================================
+# AI INSIGHTS — the three core deliverables, front and center:
+# forecast + cost, anomaly detection, recommendations.
+# ============================================================
+
+st.markdown('<div class="section-title">AI Insights</div>', unsafe_allow_html=True)
+st.markdown(
+    '<div class="section-caption">Forecast, anomaly detection, and recommendations produced by the trained model from the live feed</div>',
+    unsafe_allow_html=True,
+)
+
+insight_col1, insight_col2 = st.columns([1, 1])
+
+with insight_col1:
+    if forecast.get("available"):
+        forecast_value_html = f"{forecast['prediction_kw']:.3f} kW"
+        cost_line = f"Estimated cost: {next_hour_cost_egp:.2f} EGP for the next hour" if next_hour_cost_egp is not None else ""
+    else:
+        forecast_value_html = "Initializing"
+        cost_line = forecast.get("message", "")
+
+    st.markdown(
+        f"""
+        <div class="glass-card">
+            <div class="card-label">Forecast — Next Hour</div>
+            <div class="card-value">{forecast_value_html}</div>
+            <div class="card-sub">{cost_line}</div>
+            <hr style="border-color: rgba(255,255,255,0.08); margin: 14px 0;">
+            <div class="card-label">Projected Monthly Bill</div>
+            <div class="card-value plain" style="font-size: 22px;">{projected_monthly_bill_egp:,.0f} EGP</div>
+            <div class="card-sub">
+                Based on the current 24-hour average of {baseline_kw:.3f} kW,
+                projected to {projected_monthly_kwh:,.0f} kWh/month at the
+                EgyptERA residential tariff. Daily estimate:
+                {projected_daily_bill_egp:,.2f} EGP.
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+with insight_col2:
+    if anomaly.get("available"):
+        z_score = anomaly["score"]
+        gauge_fig = go.Figure(
+            go.Indicator(
+                mode="gauge+number",
+                value=z_score,
+                number={"suffix": " z", "font": {"color": "#eef1f7"}},
+                gauge={
+                    "axis": {"range": [-4, 4], "tickcolor": "#8b96ab"},
+                    "bar": {"color": "#ef4444" if anomaly.get("is_anomaly") else "#8b5cf6"},
+                    "steps": [
+                        {"range": [-4, -3], "color": "rgba(239,68,68,0.35)"},
+                        {"range": [-3, 3], "color": "rgba(139,92,246,0.18)"},
+                        {"range": [3, 4], "color": "rgba(239,68,68,0.35)"},
+                    ],
+                    "threshold": {
+                        "line": {"color": "#f87171", "width": 3},
+                        "thickness": 0.8,
+                        "value": z_score,
+                    },
+                    "bgcolor": "rgba(0,0,0,0)",
+                },
+            )
+        )
+        gauge_fig.update_layout(
+            height=200,
+            margin=dict(l=20, r=20, t=30, b=10),
+            paper_bgcolor="rgba(0,0,0,0)",
+            font=dict(color="#eef1f7"),
+        )
+
+        st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+        st.markdown('<div class="card-label">Anomaly Detection</div>', unsafe_allow_html=True)
+        st.plotly_chart(gauge_fig, use_container_width=True)
+        if anomaly.get("is_anomaly"):
+            st.markdown(
+                f'{status_pill("Anomaly Detected", "negative")} '
+                f'<span class="card-sub">Baseline {anomaly["baseline_kw"]:.3f} kW, current {power_kw:.3f} kW</span>',
+                unsafe_allow_html=True,
+            )
+        else:
+            st.markdown(
+                f'{status_pill("Normal", "positive")} '
+                f'<span class="card-sub">Baseline {anomaly["baseline_kw"]:.3f} kW, current {power_kw:.3f} kW</span>',
+                unsafe_allow_html=True,
+            )
+        st.markdown("</div>", unsafe_allow_html=True)
+    else:
+        st.markdown(
+            f"""
+            <div class="glass-card">
+                <div class="card-label">Anomaly Detection</div>
+                <div class="card-value plain" style="font-size: 18px;">{anomaly.get("message")}</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+st.markdown("<div style='height: 16px;'></div>", unsafe_allow_html=True)
+
+st.markdown('<div class="card-label" style="padding-left: 4px;">Recommendations</div>', unsafe_allow_html=True)
+
+if recommendations:
+    for rec in recommendations:
+        is_alert = "unusual" in rec.lower()
+        css_class = "rec-card alert" if is_alert else "rec-card"
+        tag = "Alert" if is_alert else "Recommendation"
+        st.markdown(
+            f'<div class="{css_class}"><span class="rec-tag">{tag}</span>{rec}</div>',
+            unsafe_allow_html=True,
+        )
+else:
+    st.markdown(
+        '<div class="rec-card"><span class="rec-tag">Status</span>'
+        "No action is required at this time.</div>",
+        unsafe_allow_html=True,
+    )
 
 
 # ============================================================
@@ -597,10 +976,12 @@ fig.add_trace(
         y=chart_df["power_kw"],
         mode="lines+markers",
         name="Live power (kW)",
-        line=dict(color="#22b8cf", width=3),
+        line=dict(color="#8b5cf6", width=3),
+        fill="tozeroy",
+        fillcolor="rgba(139, 92, 246, 0.15)",
         marker=dict(
             size=8,
-            color=["#ef4444" if a else "#22b8cf" for a in chart_df["is_anomaly"]],
+            color=["#ef4444" if a else "#ec4899" for a in chart_df["is_anomaly"]],
             line=dict(width=0),
         ),
     )
@@ -613,7 +994,7 @@ if chart_df["forecast_kw"].notna().any():
             y=chart_df["forecast_kw"],
             mode="lines",
             name="Model forecast (kW)",
-            line=dict(color="#94a3b8", width=2, dash="dash"),
+            line=dict(color="#f97316", width=2, dash="dash"),
         )
     )
 
@@ -644,107 +1025,54 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-if appliances:
-    appliance_rows = [
-        {
-            "Appliance": name.replace("_", " ").title(),
-            "Status": "Active" if data.get("on") else "Standby",
-            "Power (kW)": data.get("power_kw", 0.0),
-        }
-        for name, data in appliances.items()
-    ]
-    appliance_df = pd.DataFrame(appliance_rows).sort_values("Power (kW)", ascending=False)
+appliance_rows = [
+    {
+        "Appliance": name.replace("_", " ").title(),
+        "Status": "Active" if data.get("on") else "Standby",
+        "Power (kW)": data.get("power_kw", 0.0),
+    }
+    for name, data in appliances.items()
+]
+appliance_df = pd.DataFrame(appliance_rows).sort_values("Power (kW)", ascending=False)
 
-    a1, a2 = st.columns([1, 1])
-
-    with a1:
-        st.dataframe(appliance_df, use_container_width=True, hide_index=True)
-
-    with a2:
-        active_df = appliance_df[appliance_df["Power (kW)"] > 0]
-        if not active_df.empty:
-            bar_fig = go.Figure(
-                go.Bar(
-                    x=active_df["Power (kW)"],
-                    y=active_df["Appliance"],
-                    orientation="h",
-                    marker_color="#22b8cf",
-                )
-            )
-            bar_fig.update_layout(
-                height=260,
-                margin=dict(l=10, r=10, t=10, b=10),
-                plot_bgcolor="rgba(0,0,0,0)",
-                paper_bgcolor="rgba(0,0,0,0)",
-                font=dict(color="#cbd5e1"),
-                xaxis=dict(title="kW", gridcolor="rgba(148,163,184,0.15)"),
-            )
-            st.plotly_chart(bar_fig, use_container_width=True)
-        else:
-            st.info("No appliances are currently drawing power.")
-
-
-# ============================================================
-# ANOMALY DETECTION
-# ============================================================
-
-st.markdown('<div class="section-title">Anomaly Detection</div>', unsafe_allow_html=True)
+active_count = int((appliance_df["Status"] == "Active").sum())
 st.markdown(
-    '<div class="section-caption">Statistical deviation from the trailing 24-hour baseline</div>',
+    f'<div class="section-caption" style="padding-left: 4px;">'
+    f'{status_pill(f"{active_count} of {len(appliance_df)} appliances active", "positive" if active_count > 0 else "neutral")}'
+    f"</div>",
     unsafe_allow_html=True,
 )
 
-if not anomaly.get("available"):
-    st.info(anomaly.get("message"))
-elif anomaly.get("is_anomaly"):
-    st.markdown(
-        f"""
-        <div class="status-banner negative">
-            <strong>Unusual consumption detected.</strong>
-            Current draw is {power_kw:.3f} kW against a baseline of
-            {anomaly['baseline_kw']:.3f} kW (z-score {anomaly['score']}).
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-else:
-    st.markdown(
-        f"""
-        <div class="status-banner positive">
-            <strong>Consumption is within the normal range.</strong>
-            Current draw is {power_kw:.3f} kW against a baseline of
-            {anomaly['baseline_kw']:.3f} kW (z-score {anomaly['score']}).
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+a1, a2 = st.columns([1, 1])
 
+with a1:
+    st.dataframe(appliance_df, use_container_width=True, hide_index=True)
 
-# ============================================================
-# RECOMMENDATIONS
-# ============================================================
-
-st.markdown('<div class="section-title">Energy-Saving Recommendations</div>', unsafe_allow_html=True)
-st.markdown(
-    '<div class="section-caption">Generated from current appliance activity and detected anomalies</div>',
-    unsafe_allow_html=True,
-)
-
-if recommendations:
-    for rec in recommendations:
-        is_alert = "unusual" in rec.lower()
-        css_class = "rec-card alert" if is_alert else "rec-card"
-        tag = "Alert" if is_alert else "Recommendation"
-        st.markdown(
-            f'<div class="{css_class}"><span class="rec-tag">{tag}</span>{rec}</div>',
-            unsafe_allow_html=True,
+with a2:
+    active_df = appliance_df[appliance_df["Power (kW)"] > 0]
+    if not active_df.empty:
+        bar_fig = go.Figure(
+            go.Bar(
+                x=active_df["Power (kW)"],
+                y=active_df["Appliance"],
+                orientation="h",
+                marker=dict(
+                    color=active_df["Power (kW)"],
+                    colorscale=[[0, "#8b5cf6"], [0.5, "#ec4899"], [1, "#f97316"]],
+                ),
+            )
         )
-else:
-    st.markdown(
-        '<div class="rec-card"><span class="rec-tag">Status</span>'
-        "No action is required at this time.</div>",
-        unsafe_allow_html=True,
-    )
+        bar_fig.update_layout(
+            height=300,
+            margin=dict(l=10, r=10, t=10, b=10),
+            plot_bgcolor="rgba(0,0,0,0)",
+            paper_bgcolor="rgba(0,0,0,0)",
+            font=dict(color="#cbd5e1"),
+            xaxis=dict(title="kW", gridcolor="rgba(148,163,184,0.15)"),
+        )
+        st.plotly_chart(bar_fig, use_container_width=True)
+    else:
+        st.info("No appliances are currently drawing power.")
 
 
 # ============================================================
@@ -769,9 +1097,15 @@ summary_df = pd.DataFrame(
             "Value": f"{forecast['prediction_kw']:.3f} kW" if forecast.get("available") else "Initializing",
         },
         {
+            "Metric": "Estimated next-hour cost",
+            "Value": f"{next_hour_cost_egp:.2f} EGP" if next_hour_cost_egp is not None else "N/A",
+        },
+        {"Metric": "Projected monthly bill", "Value": f"{projected_monthly_bill_egp:,.0f} EGP"},
+        {
             "Metric": "Anomaly Status",
             "Value": "Anomaly Detected" if anomaly.get("is_anomaly") else "Normal",
         },
+        {"Metric": "Active Appliances", "Value": f"{active_count} of {len(appliance_df)}"},
     ]
 )
 
@@ -787,7 +1121,9 @@ st.caption("EnergySavvy AI  |  Intelligent Systems")
 st.caption(
     "The forecast model was trained on the UCI Household Power Consumption dataset "
     "and the Cairo Weather dataset (historical, training-only). All data displayed "
-    "above is generated live: real IP-based location, real Open-Meteo weather, and "
-    "a live household simulator feeding the trained model."
+    "above is generated live: real, presenter-selected location, real Open-Meteo "
+    "weather, and a live household simulator feeding the trained model. Electricity "
+    "costs are estimated using the EgyptERA 2026 residential tariff and are "
+    "provided for illustration only."
 )
 st.caption(f"Last update: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
