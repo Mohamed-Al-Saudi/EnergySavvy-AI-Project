@@ -104,43 +104,134 @@ EGYPT_CITIES = {
     "Sharm El Sheikh": (27.9158, 34.3300),
 }
 
-# Official EgyptERA residential tariff (2026), cumulative tiers.
-# Source: Egyptian Electricity Holding Company / EgyptERA published
-# rates. Provided for illustration; actual bills may include
-# additional fixed fees and should be verified against the latest
-# official schedule.
+# EgyptERA residential tariff currently published for 2026.
+# IMPORTANT: residential consumption above 1,000 kWh is billed at the
+# published residential rate; 2.74 EGP/kWh is associated with the
+# separate code-meter tariff, not the normal residential tier schedule.
 TARIFF_TIERS_EGP_PER_KWH = [
     (50, 0.68),
-    (100, 0.95),
-    (200, 1.15),
-    (350, 1.72),
-    (650, 2.18),
-    (1000, 2.40),
+    (100, 0.78),
+    (200, 0.95),
+    (350, 1.55),
+    (650, 1.95),
+    (1000, 2.10),
     (float("inf"), 2.58),
 ]
 
+# Fixed monthly customer-service charge by residential consumption band.
+SERVICE_FEES_EGP = [
+    (50, 1.0),
+    (100, 2.0),
+    (200, 6.0),
+    (350, 11.0),
+    (650, 15.0),
+    (1000, 25.0),
+    (float("inf"), 40.0),
+]
+
+# The instantaneous simulator power is intentionally NOT multiplied by 24h
+# and projected directly into a bill. Several appliances are represented as
+# continuously available/connected, but their real energy use is duty-cycled
+# (compressor cycles, thermostat cycles, standby/background consumption,
+# occasional operation). This keeps the monthly projection physically
+# plausible while preserving the requested 24H device category in the UI.
+CONTINUOUS_DAILY_DUTY = {
+    "refrigerator": 0.35,
+    "washing_machine": 0.03,
+    "stove": 0.05,
+    "water_heater": 0.12,
+    "router_modem": 1.00,
+    "radio": 0.15,
+    "oven": 0.03,
+    "microwave": 0.02,
+    "deep_freezer": 0.35,
+    "freezer": 0.35,
+}
+
+VARIABLE_USAGE_DAYS = 30
+
 
 def calculate_bill_egp(monthly_kwh: float) -> float:
-    """Cumulative tiered bill calculation using the EgyptERA schedule."""
+    """Calculate a residential bill from monthly consumption using the
+    currently published EgyptERA 2026 residential tiers plus the
+    corresponding customer-service charge."""
 
     if monthly_kwh <= 0:
         return 0.0
 
-    remaining = monthly_kwh
+    remaining = float(monthly_kwh)
     cost = 0.0
-    previous_cap = 0
+    previous_cap = 0.0
 
     for cap, rate in TARIFF_TIERS_EGP_PER_KWH:
         band_width = remaining if cap == float("inf") else min(remaining, cap - previous_cap)
-        if band_width <= 0:
-            break
-        cost += band_width * rate
-        remaining -= band_width
+        if band_width > 0:
+            cost += band_width * rate
+            remaining -= band_width
         previous_cap = cap
         if remaining <= 0:
             break
 
-    return cost
+    service_fee = SERVICE_FEES_EGP[-1][1]
+    for cap, fee in SERVICE_FEES_EGP:
+        if monthly_kwh <= cap:
+            service_fee = fee
+            break
+
+    return cost + service_fee
+
+
+def estimate_monthly_usage(appliances: dict, anchor_temperature: float, anchor_hour: int) -> dict:
+    """Estimate future monthly energy from appliance operating behavior.
+
+    This is deliberately schedule-based instead of using:
+        current_instantaneous_kw * 24 * 30
+
+    The latter can turn a short-lived simultaneous load into an unrealistic
+    month-long load. Continuous devices retain their requested 24H status in
+    the simulator, while their billing contribution uses realistic duty
+    factors. Variable devices use their time/temperature probabilities across
+    a synthetic day.
+    """
+
+    daily_kwh = 0.0
+    rows = []
+
+    for name, config in APPLIANCES.items():
+        rated_kw = float(config["rated_kw"])
+
+        if config["category"] == "continuous":
+            duty = CONTINUOUS_DAILY_DUTY.get(name, 0.10)
+            expected_hours = 24.0 * duty
+        else:
+            expected_hours = sum(
+                _target_probability(
+                    name,
+                    hour,
+                    _synthetic_hour_temperature(hour, anchor_temperature, anchor_hour),
+                )
+                for hour in range(24)
+            )
+
+        daily_device_kwh = rated_kw * expected_hours
+        daily_kwh += daily_device_kwh
+        rows.append({
+            "Appliance": name.replace("_", " ").title(),
+            "Group": config["group"],
+            "Expected hours/day": round(expected_hours, 2),
+            "Estimated daily kWh": round(daily_device_kwh, 2),
+        })
+
+    monthly_kwh = daily_kwh * VARIABLE_USAGE_DAYS
+    bill = calculate_bill_egp(monthly_kwh)
+
+    return {
+        "daily_kwh": daily_kwh,
+        "monthly_kwh": monthly_kwh,
+        "monthly_bill_egp": bill,
+        "effective_rate": bill / monthly_kwh if monthly_kwh else 0.0,
+        "rows": rows,
+    }
 
 
 # ============================================================
@@ -176,14 +267,24 @@ st.markdown(
     }
 
     .stApp {
-        background-color: #0b0b16;
+        background-color: #070b16;
         background-image:
-            radial-gradient(at 15% 20%, rgba(139, 92, 246, 0.22) 0px, transparent 55%),
-            radial-gradient(at 85% 15%, rgba(236, 72, 153, 0.18) 0px, transparent 55%),
-            radial-gradient(at 50% 90%, rgba(34, 184, 207, 0.14) 0px, transparent 55%);
+            linear-gradient(115deg, rgba(46, 25, 82, 0.96) 0%, rgba(9, 15, 29, 0.98) 42%, rgba(5, 55, 69, 0.96) 100%),
+            radial-gradient(at 10% 8%, rgba(139, 92, 246, 0.22) 0px, transparent 48%),
+            radial-gradient(at 88% 8%, rgba(34, 184, 207, 0.18) 0px, transparent 50%),
+            radial-gradient(at 50% 92%, rgba(236, 72, 153, 0.10) 0px, transparent 55%);
         background-attachment: fixed;
-        background-size: 200% 200%;
-        animation: bgDrift 24s ease-in-out infinite alternate;
+        background-size: 180% 180%;
+        animation: bgDrift 26s ease-in-out infinite alternate;
+    }
+
+    [data-testid="stHeader"] {
+        background: rgba(5, 8, 18, 0.20);
+    }
+
+    [data-testid="stSidebar"] {
+        background: linear-gradient(180deg, rgba(20, 16, 39, 0.97), rgba(5, 19, 30, 0.97));
+        border-right: 1px solid rgba(139, 92, 246, 0.20);
     }
 
     @keyframes bgDrift {
@@ -234,6 +335,29 @@ st.markdown(
         70%  { box-shadow: 0 0 0 9px rgba(34, 197, 94, 0); }
         100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
     }
+
+    .pipeline-strip {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin: 8px 0 18px;
+    }
+
+    .pipeline-chip {
+        display: inline-block;
+        padding: 6px 12px;
+        border-radius: 999px;
+        font-size: 10px;
+        letter-spacing: 1px;
+        font-weight: 800;
+        border: 1px solid rgba(255,255,255,0.14);
+        background: rgba(255,255,255,0.035);
+    }
+
+    .pipeline-chip.live { color: #4ade80; border-color: rgba(34,197,94,0.45); }
+    .pipeline-chip.weather { color: #22d3ee; border-color: rgba(34,211,238,0.40); }
+    .pipeline-chip.power { color: #fb923c; border-color: rgba(251,146,60,0.42); }
+    .pipeline-chip.ai { color: #c084fc; border-color: rgba(192,132,252,0.42); }
 
     .section-title {
         font-size: 21px;
@@ -735,21 +859,28 @@ recommendations = ai_results["recommendations"]
 
 
 # ============================================================
-# COST-OF-BILL PROJECTION
+# FUTURE CONSUMPTION / BILL PROJECTION
 # ============================================================
 
-baseline_kw = anomaly.get("baseline_kw") if anomaly.get("available") else power_kw
-projected_daily_kwh = baseline_kw * 24
-projected_monthly_kwh = projected_daily_kwh * 30
-projected_monthly_bill_egp = calculate_bill_egp(projected_monthly_kwh)
-effective_rate = (
-    projected_monthly_bill_egp / projected_monthly_kwh
-    if projected_monthly_kwh > 0
-    else TARIFF_TIERS_EGP_PER_KWH[0][1]
+# Do NOT use the current instantaneous kW as a 24-hour baseline.
+# The monthly estimate is derived from the operating behavior of all 15
+# simulated appliances, including realistic duty cycles and time/temperature
+# dependent usage.
+bill_projection = estimate_monthly_usage(
+    appliances,
+    float(temperature or 30.0),
+    now.hour,
 )
-projected_daily_bill_egp = projected_daily_kwh * effective_rate
+
+projected_daily_kwh = bill_projection["daily_kwh"]
+projected_monthly_kwh = bill_projection["monthly_kwh"]
+projected_monthly_bill_egp = bill_projection["monthly_bill_egp"]
+effective_rate = bill_projection["effective_rate"]
+projected_daily_bill_egp = projected_monthly_bill_egp / 30.0
 next_hour_cost_egp = (
-    forecast["prediction_kw"] * effective_rate if forecast.get("available") else None
+    forecast["prediction_kw"] * effective_rate
+    if forecast.get("available")
+    else None
 )
 
 
@@ -782,9 +913,18 @@ with header_col:
     st.markdown(
         '<div class="subtitle">'
         '<span class="live-dot"></span>'
-        "Live forecasting, anomaly detection, and cost-aware recommendations "
-        f"for a household in {city}"
+        "Live Egyptian household &nbsp;•&nbsp; real weather &nbsp;•&nbsp; simulated power &nbsp;•&nbsp; 3 AI pillars"
+        f"<br><span style='font-size:12px;color:#8793aa;'>Active location: {city}</span>"
         "</div>",
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        '<div class="pipeline-strip">'
+        '<span class="pipeline-chip live">LIVE LOCATION</span>'
+        '<span class="pipeline-chip weather">REAL WEATHER</span>'
+        '<span class="pipeline-chip power">SIMULATED POWER</span>'
+        '<span class="pipeline-chip ai">TRAINED AI</span>'
+        '</div>',
         unsafe_allow_html=True,
     )
 
@@ -815,19 +955,24 @@ st.markdown(
     f"""
     <div class="kpi-row">
         <div class="glass-card">
-            <div class="card-label">Location</div>
+            <div class="card-label">Live Location</div>
             <div class="card-value plain">{city}</div>
-            <div class="card-sub">Live weather anchored to this location</div>
+            <div class="card-sub">{latitude:.4f}, {longitude:.4f}</div>
         </div>
         <div class="glass-card">
-            <div class="card-label">Temperature</div>
+            <div class="card-label">Real Weather</div>
             <div class="card-value plain">{temperature_display}</div>
             <div class="card-sub">{humidity_sub} &nbsp;|&nbsp; wind {wind_speed:.1f} km/h</div>
         </div>
         <div class="glass-card">
-            <div class="card-label">Current Power Draw</div>
+            <div class="card-label">Instantaneous Power</div>
             <div class="card-value">{power_kw:.3f} kW</div>
-            <div class="card-sub">{voltage_v:.1f} V &nbsp;|&nbsp; {current_a:.2f} A</div>
+            <div class="card-sub">{voltage_v:.1f} V &nbsp;|&nbsp; {current_a:.2f} A &nbsp;|&nbsp; {active_count if 'active_count' in locals() else len([a for a in appliances.values() if a.get('on')])}/15 active</div>
+        </div>
+        <div class="glass-card">
+            <div class="card-label">AI Pipeline</div>
+            <div class="card-value plain">3 Pillars</div>
+            <div class="card-sub">Forecast &nbsp;•&nbsp; Anomaly &nbsp;•&nbsp; Recommendations</div>
         </div>
     </div>
     """,
@@ -847,133 +992,12 @@ with st.expander("Environment details"):
 
 
 # ============================================================
-# AI INSIGHTS — the three core deliverables, front and center:
-# forecast + cost, anomaly detection, recommendations.
+# DASHBOARD DATA — LIVE CONSUMPTION HISTORY
 # ============================================================
 
-st.markdown('<div class="section-title">AI Insights</div>', unsafe_allow_html=True)
+st.markdown('<div class="section-title">Live Consumption Dashboard</div>', unsafe_allow_html=True)
 st.markdown(
-    '<div class="section-caption">Forecast, anomaly detection, and recommendations produced by the trained model from the live feed</div>',
-    unsafe_allow_html=True,
-)
-
-insight_col1, insight_col2 = st.columns([1, 1])
-
-with insight_col1:
-    if forecast.get("available"):
-        forecast_value_html = f"{forecast['prediction_kw']:.3f} kW"
-        cost_line = f"Estimated cost: {next_hour_cost_egp:.2f} EGP for the next hour" if next_hour_cost_egp is not None else ""
-    else:
-        forecast_value_html = "Initializing"
-        cost_line = forecast.get("message", "")
-
-    st.markdown(
-        f"""
-        <div class="glass-card">
-            <div class="card-label">Forecast — Next Hour</div>
-            <div class="card-value">{forecast_value_html}</div>
-            <div class="card-sub">{cost_line}</div>
-            <hr style="border-color: rgba(255,255,255,0.08); margin: 14px 0;">
-            <div class="card-label">Projected Monthly Bill</div>
-            <div class="card-value plain" style="font-size: 22px;">{projected_monthly_bill_egp:,.0f} EGP</div>
-            <div class="card-sub">
-                Based on the current 24-hour average of {baseline_kw:.3f} kW,
-                projected to {projected_monthly_kwh:,.0f} kWh/month at the
-                EgyptERA residential tariff. Daily estimate:
-                {projected_daily_bill_egp:,.2f} EGP.
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-with insight_col2:
-    if anomaly.get("available"):
-        z_score = anomaly["score"]
-        gauge_fig = go.Figure(
-            go.Indicator(
-                mode="gauge+number",
-                value=z_score,
-                number={"suffix": " z", "font": {"color": "#eef1f7"}},
-                gauge={
-                    "axis": {"range": [-4, 4], "tickcolor": "#8b96ab"},
-                    "bar": {"color": "#ef4444" if anomaly.get("is_anomaly") else "#8b5cf6"},
-                    "steps": [
-                        {"range": [-4, -3], "color": "rgba(239,68,68,0.35)"},
-                        {"range": [-3, 3], "color": "rgba(139,92,246,0.18)"},
-                        {"range": [3, 4], "color": "rgba(239,68,68,0.35)"},
-                    ],
-                    "threshold": {
-                        "line": {"color": "#f87171", "width": 3},
-                        "thickness": 0.8,
-                        "value": z_score,
-                    },
-                    "bgcolor": "rgba(0,0,0,0)",
-                },
-            )
-        )
-        gauge_fig.update_layout(
-            height=200,
-            margin=dict(l=20, r=20, t=30, b=10),
-            paper_bgcolor="rgba(0,0,0,0)",
-            font=dict(color="#eef1f7"),
-        )
-
-        st.markdown('<div class="glass-card">', unsafe_allow_html=True)
-        st.markdown('<div class="card-label">Anomaly Detection</div>', unsafe_allow_html=True)
-        st.plotly_chart(gauge_fig, use_container_width=True)
-        if anomaly.get("is_anomaly"):
-            st.markdown(
-                f'{status_pill("Anomaly Detected", "negative")} '
-                f'<span class="card-sub">Baseline {anomaly["baseline_kw"]:.3f} kW, current {power_kw:.3f} kW</span>',
-                unsafe_allow_html=True,
-            )
-        else:
-            st.markdown(
-                f'{status_pill("Normal", "positive")} '
-                f'<span class="card-sub">Baseline {anomaly["baseline_kw"]:.3f} kW, current {power_kw:.3f} kW</span>',
-                unsafe_allow_html=True,
-            )
-        st.markdown("</div>", unsafe_allow_html=True)
-    else:
-        st.markdown(
-            f"""
-            <div class="glass-card">
-                <div class="card-label">Anomaly Detection</div>
-                <div class="card-value plain" style="font-size: 18px;">{anomaly.get("message")}</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-st.markdown("<div style='height: 16px;'></div>", unsafe_allow_html=True)
-
-st.markdown('<div class="card-label" style="padding-left: 4px;">Recommendations</div>', unsafe_allow_html=True)
-
-if recommendations:
-    for rec in recommendations:
-        is_alert = "unusual" in rec.lower()
-        css_class = "rec-card alert" if is_alert else "rec-card"
-        tag = "Alert" if is_alert else "Recommendation"
-        st.markdown(
-            f'<div class="{css_class}"><span class="rec-tag">{tag}</span>{rec}</div>',
-            unsafe_allow_html=True,
-        )
-else:
-    st.markdown(
-        '<div class="rec-card"><span class="rec-tag">Status</span>'
-        "No action is required at this time.</div>",
-        unsafe_allow_html=True,
-    )
-
-
-# ============================================================
-# CONSUMPTION CHART: ACTUAL vs FORECAST
-# ============================================================
-
-st.markdown('<div class="section-title">Consumption: Live vs. Forecast</div>', unsafe_allow_html=True)
-st.markdown(
-    '<div class="section-caption">Highlighted markers indicate readings flagged as anomalous</div>',
+    '<div class="section-caption">Real weather and instantaneous household telemetry feeding the AI pipeline in real time.</div>',
     unsafe_allow_html=True,
 )
 
@@ -985,12 +1009,12 @@ fig.add_trace(
         y=chart_df["power_kw"],
         mode="lines+markers",
         name="Live power (kW)",
-        line=dict(color="#8b5cf6", width=3),
+        line=dict(color="#ff8c2b", width=3),
         fill="tozeroy",
-        fillcolor="rgba(139, 92, 246, 0.15)",
+        fillcolor="rgba(255,140,43,0.14)",
         marker=dict(
-            size=8,
-            color=["#ef4444" if a else "#ec4899" for a in chart_df["is_anomaly"]],
+            size=7,
+            color=["#ef4444" if a else "#ff8c2b" for a in chart_df["is_anomaly"]],
             line=dict(width=0),
         ),
     )
@@ -1002,13 +1026,13 @@ if chart_df["forecast_kw"].notna().any():
             x=chart_df["time"],
             y=chart_df["forecast_kw"],
             mode="lines",
-            name="Model forecast (kW)",
-            line=dict(color="#f97316", width=2, dash="dash"),
+            name="AI forecast (kW)",
+            line=dict(color="#22c55e", width=2, dash="dash"),
         )
     )
 
 fig.update_layout(
-    height=380,
+    height=360,
     margin=dict(l=10, r=10, t=10, b=10),
     plot_bgcolor="rgba(0,0,0,0)",
     paper_bgcolor="rgba(0,0,0,0)",
@@ -1017,26 +1041,22 @@ fig.update_layout(
     xaxis=dict(showgrid=False),
     yaxis=dict(title="kW", showgrid=True, gridcolor="rgba(148,163,184,0.15)"),
 )
-
 st.plotly_chart(fig, use_container_width=True)
 
-if not forecast.get("available"):
-    st.info(forecast.get("message"))
-
 
 # ============================================================
-# APPLIANCE BREAKDOWN
+# APPLIANCE DASHBOARD
 # ============================================================
 
-st.markdown('<div class="section-title">Appliance Breakdown</div>', unsafe_allow_html=True)
+st.markdown('<div class="section-title">Household Device Dashboard</div>', unsafe_allow_html=True)
 st.markdown(
-    '<div class="section-caption">The simulator explicitly separates continuous 24-hour loads from flexible time-dependent loads. Both groups can operate in parallel.</div>',
+    '<div class="section-caption">The household is explicitly separated into 24-hour continuous devices and time-dependent devices. Both groups may operate in parallel.</div>',
     unsafe_allow_html=True,
 )
 
 appliance_rows = [
     {
-        "Appliance": name.replace("_", " " ).title(),
+        "Appliance": name.replace("_", " ").title(),
         "Operating Group": data.get("group", "Variable"),
         "Mode": data.get("operating_mode", "time-dependent"),
         "Status": "Active" if data.get("on") else "Standby",
@@ -1054,39 +1074,53 @@ variable_power = float(variable_df["Power (kW)"].sum())
 c1, c2, c3 = st.columns(3)
 with c1:
     st.markdown(
-        f"""<div class=\"group-card\"><div class=\"group-title\">24-hour continuous</div><div class=\"group-description\">{len(continuous_df)} appliances · always active · can operate in parallel · current load {continuous_power:.3f} kW</div></div>""",
+        f"""<div class="group-card"><div class="group-title">24-hour continuous</div><div class="group-description">{len(continuous_df)} devices · active in parallel · instantaneous load {continuous_power:.3f} kW</div></div>""",
         unsafe_allow_html=True,
     )
 with c2:
     st.markdown(
-        f"""<div class=\"group-card variable\"><div class=\"group-title\">Time-dependent</div><div class=\"group-description\">{len(variable_df)} appliances · may turn on/off by time and temperature · can overlap with each other and the 24H group · current load {variable_power:.3f} kW</div></div>""",
+        f"""<div class="group-card variable"><div class="group-title">Time-dependent</div><div class="group-description">{len(variable_df)} devices · controlled by time/temperature · instantaneous load {variable_power:.3f} kW</div></div>""",
         unsafe_allow_html=True,
     )
 with c3:
     st.markdown(
-        f"""<div class=\"group-card\"><div class=\"group-title\">Live household</div><div class=\"group-description\">{active_count} of {len(appliance_df)} appliances active · total instantaneous load {power_kw:.3f} kW</div></div>""",
+        f"""<div class="group-card"><div class="group-title">Live household</div><div class="group-description">{active_count} / {len(appliance_df)} active · total instantaneous load {power_kw:.3f} kW</div></div>""",
         unsafe_allow_html=True,
     )
 
-st.markdown('<div class="card-label" style="padding-left: 4px;">24-hour continuous devices</div>', unsafe_allow_html=True)
-st.dataframe(continuous_df[["Appliance", "Status", "Power (kW)"]], use_container_width=True, hide_index=True)
+left_devices, right_devices = st.columns(2)
+with left_devices:
+    st.markdown('<div class="card-label">24-hour continuous devices</div>', unsafe_allow_html=True)
+    st.dataframe(
+        continuous_df[["Appliance", "Status", "Power (kW)"]],
+        use_container_width=True,
+        hide_index=True,
+    )
+with right_devices:
+    st.markdown('<div class="card-label">Time-dependent devices</div>', unsafe_allow_html=True)
+    st.dataframe(
+        variable_df[["Appliance", "Status", "Power (kW)"]],
+        use_container_width=True,
+        hide_index=True,
+    )
 
-st.markdown('<div class="card-label" style="padding-left: 4px; margin-top: 12px;">Time-dependent devices</div>', unsafe_allow_html=True)
-st.dataframe(variable_df[["Appliance", "Status", "Power (kW)"]], use_container_width=True, hide_index=True)
-
-st.markdown('<div class="card-label" style="padding-left: 4px; margin-top: 12px;">Current load contribution</div>', unsafe_allow_html=True)
 active_df = appliance_df[appliance_df["Power (kW)"] > 0].sort_values("Power (kW)", ascending=True)
 if not active_df.empty:
-    bar_fig = go.Figure(go.Bar(
-        x=active_df["Power (kW)"],
-        y=active_df["Appliance"],
-        orientation="h",
-        marker=dict(color=active_df["Power (kW)"], colorscale=[[0, "#22b8cf"], [0.5, "#8b5cf6"], [1, "#ec4899"]]),
-        customdata=active_df[["Operating Group"]],
-        hovertemplate="%{y}<br>Power: %{x:.3f} kW<br>Group: %{customdata[0]}<extra></extra>",
-    ))
+    bar_fig = go.Figure(
+        go.Bar(
+            x=active_df["Power (kW)"],
+            y=active_df["Appliance"],
+            orientation="h",
+            marker=dict(
+                color=active_df["Power (kW)"],
+                colorscale=[[0, "#22b8cf"], [0.5, "#8b5cf6"], [1, "#ec4899"]],
+            ),
+            customdata=active_df[["Operating Group"]],
+            hovertemplate="%{y}<br>Power: %{x:.3f} kW<br>Group: %{customdata[0]}<extra></extra>",
+        )
+    )
     bar_fig.update_layout(
-        height=430,
+        height=400,
         margin=dict(l=10, r=10, t=10, b=10),
         plot_bgcolor="rgba(0,0,0,0)",
         paper_bgcolor="rgba(0,0,0,0)",
@@ -1095,44 +1129,209 @@ if not active_df.empty:
         yaxis=dict(title="", showgrid=False),
     )
     st.plotly_chart(bar_fig, use_container_width=True)
-else:
-    st.info("No appliances are currently drawing power.")
 
 
 # ============================================================
-# SYSTEM SUMMARY
+# 1. FORECAST + FUTURE MONTHLY BILL
 # ============================================================
 
-st.markdown('<div class="section-title">Summary</div>', unsafe_allow_html=True)
+st.markdown('<div class="section-title">1. Forecast & Future Monthly Bill</div>', unsafe_allow_html=True)
 st.markdown(
-    '<div class="section-caption">Consolidated snapshot of the current reading</div>',
+    '<div class="section-caption">The trained Random Forest forecasts the next hour, while the monthly bill is estimated from appliance operating schedules rather than multiplying one instantaneous reading by 720 hours.</div>',
+    unsafe_allow_html=True,
+)
+
+forecast_col, bill_col = st.columns([1, 1])
+
+with forecast_col:
+    if forecast.get("available"):
+        forecast_value = f"{forecast['prediction_kw']:.3f} kW"
+        forecast_cost = (
+            f"Estimated next-hour energy cost: {next_hour_cost_egp:.2f} EGP"
+            if next_hour_cost_egp is not None
+            else ""
+        )
+        forecast_status = status_pill("MODEL ACTIVE", "positive")
+    else:
+        forecast_value = "Initializing"
+        forecast_cost = forecast.get("message", "Building the forecast history...")
+        forecast_status = status_pill("WARMING UP", "neutral")
+
+    st.markdown(
+        f"""
+        <div class="glass-card">
+            <div class="card-label">Next-Hour Consumption Forecast</div>
+            <div class="card-value">{forecast_value}</div>
+            <div class="card-sub">{forecast_cost}</div>
+            <div style="margin-top:14px;">{forecast_status}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+with bill_col:
+    st.markdown(
+        f"""
+        <div class="glass-card bill-card">
+            <div class="card-label">Projected Monthly Electricity Bill</div>
+            <div class="card-value">{projected_monthly_bill_egp:,.0f} EGP</div>
+            <div class="card-sub">
+                Estimated consumption: <strong>{projected_monthly_kwh:,.0f} kWh/month</strong><br>
+                Average modeled use: <strong>{projected_daily_kwh:.1f} kWh/day</strong><br>
+                Effective modeled cost: <strong>{effective_rate:.2f} EGP/kWh</strong>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+st.markdown("<div style='height:14px;'></div>", unsafe_allow_html=True)
+
+bill_note_col1, bill_note_col2 = st.columns([2, 1])
+with bill_note_col1:
+    st.markdown(
+        f"""
+        <div class="status-banner positive">
+            <strong>Why this estimate is more realistic:</strong>
+            the simulator's 24H appliances remain available in parallel, but their
+            billing contribution uses duty-cycle behavior. Variable appliances use
+            time and temperature dependent operating probabilities. The model therefore
+            does not assume the current {power_kw:.3f} kW load continues unchanged for all 30 days.
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+with bill_note_col2:
+    st.markdown(
+        f"""
+        <div class="glass-card">
+            <div class="card-label">Daily Cost Projection</div>
+            <div class="card-value plain" style="font-size:24px;">{projected_daily_bill_egp:.2f} EGP</div>
+            <div class="card-sub">30-day projection</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+
+
+# ============================================================
+# 2. UNUSUAL BEHAVIOR / ANOMALY DETECTION
+# ============================================================
+
+st.markdown('<div class="section-title">2. Detect Unusual Behavior</div>', unsafe_allow_html=True)
+st.markdown(
+    '<div class="section-caption">The live anomaly layer compares the current household load with its recent learned baseline and flags statistically unusual behavior.</div>',
+    unsafe_allow_html=True,
+)
+
+if anomaly.get("available"):
+    z_score = anomaly["score"]
+    gauge_fig = go.Figure(
+        go.Indicator(
+            mode="gauge+number",
+            value=z_score,
+            number={"suffix": " z", "font": {"color": "#eef1f7"}},
+            gauge={
+                "axis": {"range": [-4, 4], "tickcolor": "#8b96ab"},
+                "bar": {"color": "#ef4444" if anomaly.get("is_anomaly") else "#8b5cf6"},
+                "steps": [
+                    {"range": [-4, -3], "color": "rgba(239,68,68,0.35)"},
+                    {"range": [-3, 3], "color": "rgba(139,92,246,0.18)"},
+                    {"range": [3, 4], "color": "rgba(239,68,68,0.35)"},
+                ],
+                "threshold": {
+                    "line": {"color": "#f87171", "width": 3},
+                    "thickness": 0.8,
+                    "value": z_score,
+                },
+                "bgcolor": "rgba(0,0,0,0)",
+            },
+        )
+    )
+    gauge_fig.update_layout(
+        height=220,
+        margin=dict(l=20, r=20, t=20, b=10),
+        paper_bgcolor="rgba(0,0,0,0)",
+        font=dict(color="#eef1f7"),
+    )
+
+    ac1, ac2 = st.columns([1.2, 1])
+    with ac1:
+        st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+        st.markdown('<div class="card-label">Anomaly Score</div>', unsafe_allow_html=True)
+        st.plotly_chart(gauge_fig, use_container_width=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+    with ac2:
+        if anomaly.get("is_anomaly"):
+            st.markdown(
+                f"""<div class="status-banner negative"><strong>Unusual behavior detected.</strong><br><br>Baseline: {anomaly['baseline_kw']:.3f} kW<br>Current: {power_kw:.3f} kW<br>Deviation score: {z_score:.2f} z</div>""",
+                unsafe_allow_html=True,
+            )
+        else:
+            st.markdown(
+                f"""<div class="status-banner positive"><strong>Consumption pattern is currently normal.</strong><br><br>Baseline: {anomaly['baseline_kw']:.3f} kW<br>Current: {power_kw:.3f} kW<br>Deviation score: {z_score:.2f} z</div>""",
+                unsafe_allow_html=True,
+            )
+else:
+    st.markdown(
+        f"""<div class="glass-card"><div class="card-label">Anomaly Detection</div><div class="card-value plain" style="font-size:18px;">{anomaly.get('message', 'Initializing anomaly baseline')}</div></div>""",
+        unsafe_allow_html=True,
+    )
+
+
+# ============================================================
+# 3. DATA-DRIVEN RECOMMENDATIONS
+# ============================================================
+
+st.markdown('<div class="section-title">3. Data-Driven Recommendations</div>', unsafe_allow_html=True)
+st.markdown(
+    '<div class="section-caption">Recommendations combine the live appliance states, current consumption, time of day, temperature, and detected behavior.</div>',
+    unsafe_allow_html=True,
+)
+
+if recommendations:
+    for rec in recommendations:
+        is_alert = "unusual" in rec.lower() or "anomaly" in rec.lower()
+        css_class = "rec-card alert" if is_alert else "rec-card"
+        tag = "Alert" if is_alert else "Recommendation"
+        st.markdown(
+            f'<div class="{css_class}"><span class="rec-tag">{tag}</span>{rec}</div>',
+            unsafe_allow_html=True,
+        )
+else:
+    st.markdown(
+        '<div class="rec-card"><span class="rec-tag">Status</span>No immediate energy-saving action is required.</div>',
+        unsafe_allow_html=True,
+    )
+
+
+# ============================================================
+# FINAL SNAPSHOT
+# ============================================================
+
+st.markdown('<div class="section-title">System Snapshot</div>', unsafe_allow_html=True)
+st.markdown(
+    '<div class="section-caption">The complete live state presented to the judge at the current refresh.</div>',
     unsafe_allow_html=True,
 )
 
 summary_df = pd.DataFrame(
     [
         {"Metric": "Location", "Value": city},
-        {"Metric": "Temperature", "Value": f"{temperature:.1f} \u00b0C" if temperature is not None else "N/A"},
-        {"Metric": "Current Power", "Value": f"{power_kw:.3f} kW"},
+        {"Metric": "Live temperature", "Value": f"{temperature:.1f} °C" if temperature is not None else "N/A"},
+        {"Metric": "Humidity", "Value": f"{humidity:.0f}%" if humidity is not None else "N/A"},
+        {"Metric": "Instantaneous power", "Value": f"{power_kw:.3f} kW"},
         {"Metric": "Voltage", "Value": f"{voltage_v:.1f} V"},
         {"Metric": "Current", "Value": f"{current_a:.2f} A"},
-        {
-            "Metric": "Forecast (next hour)",
-            "Value": f"{forecast['prediction_kw']:.3f} kW" if forecast.get("available") else "Initializing",
-        },
-        {
-            "Metric": "Estimated next-hour cost",
-            "Value": f"{next_hour_cost_egp:.2f} EGP" if next_hour_cost_egp is not None else "N/A",
-        },
+        {"Metric": "Forecast next hour", "Value": f"{forecast['prediction_kw']:.3f} kW" if forecast.get("available") else "Initializing"},
+        {"Metric": "Projected monthly consumption", "Value": f"{projected_monthly_kwh:,.0f} kWh"},
         {"Metric": "Projected monthly bill", "Value": f"{projected_monthly_bill_egp:,.0f} EGP"},
-        {
-            "Metric": "Anomaly Status",
-            "Value": "Anomaly Detected" if anomaly.get("is_anomaly") else "Normal",
-        },
-        {"Metric": "Active Appliances", "Value": f"{active_count} of {len(appliance_df)}"},
+        {"Metric": "Anomaly status", "Value": "Anomaly Detected" if anomaly.get("is_anomaly") else "Normal"},
+        {"Metric": "Active appliances", "Value": f"{active_count} of {len(appliance_df)}"},
     ]
 )
-
 st.dataframe(summary_df, use_container_width=True, hide_index=True)
 
 
