@@ -91,18 +91,42 @@ CHART_HISTORY_POINTS = 60
 # reflects the presenter's actual demo location rather than wherever
 # the hosting server happens to be. IP-based geolocation is offered as
 # a secondary option, with a clear caveat (see sidebar).
-EGYPT_CITIES = {
+# All 27 Egyptian governorates. Coordinates point to each governorate's
+# main city/capital and are used only to request live weather from Open-Meteo.
+# The dashboard therefore supports a complete Egypt-wide demo, not only
+# the original Cairo/major-city shortlist.
+EGYPT_GOVERNORATES = {
     "Cairo": (30.0444, 31.2357),
-    "Giza": (30.0131, 31.2089),
     "Alexandria": (31.2001, 29.9187),
-    "Mansoura": (31.0409, 31.3785),
-    "Tanta": (30.7865, 31.0004),
-    "Ismailia": (30.5965, 32.2715),
     "Port Said": (31.2653, 32.3019),
+    "Suez": (29.9668, 32.5498),
+    "Damietta": (31.4175, 31.8144),
+    "Dakahlia": (31.0409, 31.3785),
+    "Sharqia": (30.5877, 31.5020),
+    "Qalyubia": (30.4598, 31.1786),
+    "Kafr El Sheikh": (31.1107, 30.9388),
+    "Gharbia": (30.7865, 31.0004),
+    "Monufia": (30.5972, 30.9876),
+    "Beheira": (31.0341, 30.4682),
+    "Ismailia": (30.5965, 32.2715),
+    "Giza": (30.0131, 31.2089),
+    "Fayoum": (29.3084, 30.8428),
+    "Beni Suef": (29.0661, 31.0994),
+    "Minya": (28.1099, 30.7503),
+    "Assiut": (27.1809, 31.1837),
+    "Sohag": (26.5591, 31.6957),
+    "Qena": (26.1551, 32.7160),
     "Luxor": (25.6872, 32.6396),
     "Aswan": (24.0889, 32.8998),
-    "Sharm El Sheikh": (27.9158, 34.3300),
+    "Red Sea": (27.2579, 33.8116),
+    "New Valley": (25.4410, 30.5586),
+    "Matrouh": (31.3543, 27.2373),
+    "North Sinai": (31.1313, 33.8033),
+    "South Sinai": (28.2173, 33.6254),
 }
+
+# Backward-compatible alias for any code that may still reference the old name.
+EGYPT_CITIES = EGYPT_GOVERNORATES
 
 # EgyptERA residential tariff currently published for 2026.
 # IMPORTANT: residential consumption above 1,000 kWh is billed at the
@@ -266,30 +290,34 @@ st.markdown(
         --accent-4: #22b8cf;
     }
 
+    /* Stable competition background: intentionally NO background animation.
+       Streamlit reruns the page every few seconds; an animated background
+       restarts on every rerun and can briefly flash almost black. */
     .stApp {
-        background-color: #070b16;
+        background-color: #101329;
         background-image:
-            linear-gradient(115deg, rgba(46, 25, 82, 0.96) 0%, rgba(9, 15, 29, 0.98) 42%, rgba(5, 55, 69, 0.96) 100%),
-            radial-gradient(at 10% 8%, rgba(139, 92, 246, 0.22) 0px, transparent 48%),
-            radial-gradient(at 88% 8%, rgba(34, 184, 207, 0.18) 0px, transparent 50%),
-            radial-gradient(at 50% 92%, rgba(236, 72, 153, 0.10) 0px, transparent 55%);
+            linear-gradient(115deg, #30205a 0%, #17182d 38%, #0d1c2d 68%, #073d4a 100%),
+            radial-gradient(circle at 8% 8%, rgba(139, 92, 246, 0.34), transparent 34%),
+            radial-gradient(circle at 92% 10%, rgba(34, 184, 207, 0.28), transparent 36%),
+            radial-gradient(circle at 50% 95%, rgba(236, 72, 153, 0.14), transparent 42%);
         background-attachment: fixed;
-        background-size: 180% 180%;
-        animation: bgDrift 26s ease-in-out infinite alternate;
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
+    }
+
+    [data-testid="stAppViewContainer"],
+    [data-testid="stMain"] {
+        background: transparent;
     }
 
     [data-testid="stHeader"] {
-        background: rgba(5, 8, 18, 0.20);
+        background: rgba(9, 12, 25, 0.18);
     }
 
     [data-testid="stSidebar"] {
-        background: linear-gradient(180deg, rgba(20, 16, 39, 0.97), rgba(5, 19, 30, 0.97));
-        border-right: 1px solid rgba(139, 92, 246, 0.20);
-    }
-
-    @keyframes bgDrift {
-        0%   { background-position: 0% 0%, 100% 0%, 50% 100%; }
-        100% { background-position: 15% 15%, 85% 20%, 55% 85%; }
+        background: linear-gradient(180deg, rgba(25, 19, 50, 0.98), rgba(7, 27, 39, 0.98));
+        border-right: 1px solid rgba(139, 92, 246, 0.24);
     }
 
     .eyebrow {
@@ -318,6 +346,35 @@ st.markdown(
         display: flex;
         align-items: center;
     }
+
+    .project-info {
+        display: inline-block;
+        padding: 8px 13px;
+        margin: -8px 0 14px 0;
+        border: 1px solid rgba(139, 92, 246, 0.24);
+        border-radius: 12px;
+        background: rgba(10, 14, 28, 0.38);
+        color: #cbd5e1;
+        font-size: 12px;
+        line-height: 1.6;
+        backdrop-filter: blur(8px);
+    }
+
+
+    .footer-card {
+        margin-top: 8px;
+        padding: 18px 20px;
+        border: 1px solid rgba(139, 92, 246, 0.24);
+        border-radius: 16px;
+        background: linear-gradient(135deg, rgba(42, 28, 72, 0.62), rgba(8, 31, 43, 0.62));
+        backdrop-filter: blur(10px);
+    }
+
+    .footer-title { font-size: 18px; font-weight: 700; color: #f4f7fb; margin-bottom: 8px; }
+    .footer-line { color: #aeb7c8; font-size: 12px; line-height: 1.8; }
+    .footer-line a { color: #67e8f9; text-decoration: none; }
+    .footer-line a:hover { text-decoration: underline; }
+    .footer-description { margin-top: 9px; color: #8f9bb0; font-size: 11px; line-height: 1.7; max-width: 1100px; }
 
     .live-dot {
         height: 9px;
@@ -751,11 +808,11 @@ st.sidebar.markdown(
 )
 
 st.sidebar.markdown("---")
-st.sidebar.markdown("**Household location**")
+st.sidebar.markdown("**Egyptian governorate**")
 
 location_choice = st.sidebar.selectbox(
-    "Select the demo location",
-    options=list(EGYPT_CITIES.keys()) + ["Detect automatically (IP-based)"],
+    "Select the demo governorate",
+    options=list(EGYPT_GOVERNORATES.keys()) + ["Detect automatically (IP-based)"],
     index=0,
     label_visibility="collapsed",
 )
@@ -771,7 +828,7 @@ if location_choice == "Detect automatically (IP-based)":
     active_lon = detected["longitude"]
     active_city = detected["city"]
 else:
-    active_lat, active_lon = EGYPT_CITIES[location_choice]
+    active_lat, active_lon = EGYPT_GOVERNORATES[location_choice]
     active_city = location_choice
 
 realtime_engine.update_location(active_lat, active_lon, active_city)
@@ -789,18 +846,36 @@ st.sidebar.markdown("---")
 
 if HAS_AUTOREFRESH:
     st_autorefresh(interval=REFRESH_INTERVAL_SECONDS * 1000, key="live_refresh")
-    st.sidebar.caption(f"Auto-refreshing every {REFRESH_INTERVAL_SECONDS} seconds")
+    st.sidebar.caption(f"Live refresh: every {REFRESH_INTERVAL_SECONDS} seconds • stable visual state")
 else:
     st.sidebar.warning("Auto-refresh module not installed. Use manual refresh.")
     if st.sidebar.button("Refresh now"):
         st.rerun()
 
 st.sidebar.markdown("---")
+st.sidebar.markdown("### Team & Project")
+st.sidebar.markdown(
+    "**Team:** VoltAI  \n"
+    "**Supervisor:** AbdelRahman Salem  \n"
+    "**Team Leader & Member:** Mohamed Al-Saudi  \n"
+    "**Location:** Cairo, Egypt"
+)
+st.sidebar.markdown(
+    "**Project:** EnergySavvy AI  \n"
+    "Software-based intelligent energy management system that analyzes household "
+    "electricity consumption data to understand usage patterns, forecast future "
+    "consumption, detect unusual behavior, and generate data-driven recommendations."
+)
+st.sidebar.markdown(
+    "[LinkedIn](https://www.linkedin.com/in/mohamed-al-saudi-638274363/) &nbsp;•&nbsp; "
+    "[GitHub](https://github.com/Mohamed-Al-Saudi) &nbsp;•&nbsp; "
+    "[Project GitHub](https://github.com/Mohamed-Al-Saudi/EnergySavvy-AI-Project)"
+)
 st.sidebar.caption(
     "Electricity costs are estimated using the official EgyptERA "
     "residential tariff (2026 schedule)."
 )
-st.sidebar.caption("EnergySavvy AI  |  Intelligent Systems")
+st.sidebar.caption("EnergySavvy AI  |  VoltAI  |  Cairo, Egypt")
 
 
 # ============================================================
@@ -916,6 +991,15 @@ with header_col:
         "Live Egyptian household &nbsp;•&nbsp; real weather &nbsp;•&nbsp; simulated power &nbsp;•&nbsp; 3 AI pillars"
         f"<br><span style='font-size:12px;color:#8793aa;'>Active location: {city}</span>"
         "</div>",
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        '<div class="project-info">'
+        '<strong>Project:</strong> EnergySavvy AI &nbsp;|&nbsp; '
+        '<strong>Team:</strong> VoltAI &nbsp;|&nbsp; '
+        '<strong>Supervisor:</strong> AbdelRahman Salem &nbsp;|&nbsp; '
+        '<strong>Team Leader & Member:</strong> Mohamed Al-Saudi &nbsp;|&nbsp; Cairo, Egypt'
+        '</div>',
         unsafe_allow_html=True,
     )
     st.markdown(
@@ -1340,7 +1424,24 @@ st.dataframe(summary_df, use_container_width=True, hide_index=True)
 # ============================================================
 
 st.markdown("---")
-st.caption("EnergySavvy AI  |  Intelligent Systems")
+st.markdown(
+    '<div class="footer-card">'
+    '<div class="footer-title">EnergySavvy AI &nbsp;|&nbsp; VoltAI</div>'
+    '<div class="footer-line"><strong>Project:</strong> EnergySavvy AI &nbsp;•&nbsp; '
+    '<strong>Supervisor:</strong> AbdelRahman Salem &nbsp;•&nbsp; '
+    '<strong>Team Leader & Member:</strong> Mohamed Al-Saudi &nbsp;•&nbsp; Cairo, Egypt</div>'
+    '<div class="footer-line">'
+    '<a href="mailto:mohamed.alsuadi2007@gmail.com">mohamed.alsuadi2007@gmail.com</a> &nbsp;•&nbsp; '
+    '<a href="https://www.linkedin.com/in/mohamed-al-saudi-638274363/" target="_blank">LinkedIn</a> &nbsp;•&nbsp; '
+    '<a href="https://github.com/Mohamed-Al-Saudi" target="_blank">GitHub</a> &nbsp;•&nbsp; '
+    '<a href="https://github.com/Mohamed-Al-Saudi/EnergySavvy-AI-Project" target="_blank">Project GitHub</a>'
+    '</div>'
+    '<div class="footer-description">'
+    'EnergySavvy AI is a software-based intelligent energy management system that analyzes household electricity consumption data to understand usage patterns, forecast future consumption, detect unusual behavior, and generate data-driven recommendations.'
+    '</div>'
+    '</div>',
+    unsafe_allow_html=True,
+)
 st.caption(
     "The forecast model was trained on the UCI Household Power Consumption dataset "
     "and the Cairo Weather dataset (historical, training-only). All data displayed "
