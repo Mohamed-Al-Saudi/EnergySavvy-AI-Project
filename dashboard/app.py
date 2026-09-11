@@ -152,9 +152,8 @@ GITHUB = "https://github.com/Mohamed-Al-Saudi"
 PROJECT_GITHUB = "https://github.com/Mohamed-Al-Saudi/EnergySavvy-AI-Project"
 ORIGIN = "Cairo, Egypt"
 PROJECT_NAME = "EnergySavvy AI"
-# Set ENERGYSAVVY_APP_URL to the deployed dashboard URL before the demo.
-# If it is not set, the QR safely points to the project GitHub repository.
-APP_URL = os.getenv("ENERGYSAVVY_APP_URL", PROJECT_GITHUB)
+# Public web-app URL entered by the user is used for the QR code.
+DEFAULT_APP_URL = os.getenv("ENERGYSAVVY_APP_URL", "")
 DESCRIPTION = (
     "EnergySavvy AI is a software-based intelligent energy management system "
     "that analyzes household electricity consumption data to understand usage "
@@ -660,19 +659,47 @@ with st.sidebar:
     st.markdown(f"[Project GitHub]({PROJECT_GITHUB})")
 
     st.markdown("---")
-    st.markdown("### Judge access")
-    qr = qrcode.QRCode(version=1, box_size=7, border=3)
-    qr.add_data(APP_URL)
-    qr.make(fit=True)
-    qr_img = qr.make_image()
-    qr_buffer = io.BytesIO()
-    qr_img.save(qr_buffer, format="PNG")
-    st.image(qr_buffer.getvalue(), width=190)
-    st.caption("Scan to open the live project.")
-    st.markdown(
-        f'<div class="small-note">QR target: {APP_URL}</div>',
-        unsafe_allow_html=True,
-    )
+    st.markdown("### Web app QR code")
+    st.caption("Enter the public Streamlit URL, then press Enter to generate a QR code for phone access.")
+
+    with st.form("qr_form", clear_on_submit=False):
+        entered_url = st.text_input(
+            "Public web-app URL",
+            value=st.session_state.get("qr_url", DEFAULT_APP_URL),
+            placeholder="https://your-app.streamlit.app",
+            label_visibility="visible",
+        )
+        generate_qr = st.form_submit_button("Generate QR Code", type="primary", use_container_width=True)
+
+    if generate_qr:
+        url = entered_url.strip()
+        if url and not url.startswith(("http://", "https://")):
+            url = "https://" + url
+        if url.startswith(("http://", "https://")):
+            st.session_state.qr_url = url
+        else:
+            st.session_state.qr_url = ""
+            st.error("Please enter a valid public web-app URL.")
+
+    qr_url = st.session_state.get("qr_url", DEFAULT_APP_URL)
+    if qr_url:
+        qr = qrcode.QRCode(version=1, box_size=7, border=3)
+        qr.add_data(qr_url)
+        qr.make(fit=True)
+        qr_img = qr.make_image()
+        qr_buffer = io.BytesIO()
+        qr_img.save(qr_buffer, format="PNG")
+        st.image(qr_buffer.getvalue(), width=190)
+        st.caption("Scan with a phone camera to open EnergySavvy AI.")
+        st.markdown(
+            f'<div class="small-note">QR target: {qr_url}</div>',
+            unsafe_allow_html=True,
+        )
+    else:
+        st.markdown(
+            '<div class="small-note">No public URL entered yet. The QR code will appear here after you submit the URL.</div>',
+            unsafe_allow_html=True,
+        )
 
 # ----------------------------------------------------------------------------
 # Persistent live state.
