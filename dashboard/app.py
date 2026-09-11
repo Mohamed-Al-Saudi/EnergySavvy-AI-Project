@@ -18,6 +18,7 @@
 import base64
 import io
 import math
+import os
 import random
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -25,6 +26,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
+import qrcode
 import requests
 import streamlit as st
 
@@ -150,6 +152,9 @@ GITHUB = "https://github.com/Mohamed-Al-Saudi"
 PROJECT_GITHUB = "https://github.com/Mohamed-Al-Saudi/EnergySavvy-AI-Project"
 ORIGIN = "Cairo, Egypt"
 PROJECT_NAME = "EnergySavvy AI"
+# Set ENERGYSAVVY_APP_URL to the deployed dashboard URL before the demo.
+# If it is not set, the QR safely points to the project GitHub repository.
+APP_URL = os.getenv("ENERGYSAVVY_APP_URL", PROJECT_GITHUB)
 DESCRIPTION = (
     "EnergySavvy AI is a software-based intelligent energy management system "
     "that analyzes household electricity consumption data to understand usage "
@@ -653,6 +658,21 @@ with st.sidebar:
     st.markdown(f"[LinkedIn]({LINKEDIN})")
     st.markdown(f"[GitHub]({GITHUB})")
     st.markdown(f"[Project GitHub]({PROJECT_GITHUB})")
+
+    st.markdown("---")
+    st.markdown("### Judge access")
+    qr = qrcode.QRCode(version=1, box_size=7, border=3)
+    qr.add_data(APP_URL)
+    qr.make(fit=True)
+    qr_img = qr.make_image()
+    qr_buffer = io.BytesIO()
+    qr_img.save(qr_buffer, format="PNG")
+    st.image(qr_buffer.getvalue(), width=190)
+    st.caption("Scan to open the live project.")
+    st.markdown(
+        f'<div class="small-note">QR target: {APP_URL}</div>',
+        unsafe_allow_html=True,
+    )
 
 # ----------------------------------------------------------------------------
 # Persistent live state.
