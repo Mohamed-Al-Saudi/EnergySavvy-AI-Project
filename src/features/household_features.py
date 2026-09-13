@@ -56,15 +56,19 @@ def build_features_from_values(values, timestamps) -> pd.DataFrame:
     return f
 
 
-def create_live_hourly_history(simulator, temp_now: float) -> pd.Series:
+def create_live_hourly_history(simulator, temp_now: float, hours: int = 336) -> pd.Series:
+    """Warm-start an hourly live series from the simulator.
+
+    Default of 336 hours (2 weeks) is required so that lag_168 has enough
+    prior history to survive `.dropna()` with a full week of valid rows.
+    """
     now = datetime.now().replace(minute=0, second=0, microsecond=0)
-    timestamps = [now - timedelta(hours=(167 - i)) for i in range(168)]
+    timestamps = [now - timedelta(hours=(hours - 1 - i)) for i in range(hours)]
     vals = []
     for ts in timestamps:
         temp = temp_now + 2.2 * np.sin((ts.hour - now.hour) / 24 * 2 * np.pi)
         vals.append(simulator.generate(temperature=temp, when=ts)["power_kw"])
     return pd.Series(vals, index=pd.DatetimeIndex(timestamps), name="power_kw")
-
 
 def forecast_live_next_hours(model, hourly_series: pd.Series, hours: int = 6) -> list[float]:
     work = hourly_series.copy()
