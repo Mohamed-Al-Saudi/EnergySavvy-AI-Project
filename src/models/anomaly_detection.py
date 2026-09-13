@@ -124,8 +124,6 @@ def detect_with_residual_and_iso(df, target_col="Global_active_power", pred_col=
 # ----------------------------------------------------------------------
 # Convenience: build the final report (matches notebook 04 report cell)
 # ----------------------------------------------------------------------
-
-
 def build_anomaly_report(df, target_col="Global_active_power"):
     """Return the anomalies sorted by abs_error (most severe first),
     with the columns used by notebook 04 / 05 and the dashboard."""
