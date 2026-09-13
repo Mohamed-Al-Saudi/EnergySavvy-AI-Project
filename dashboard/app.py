@@ -13,22 +13,61 @@
 #   - Forecast model trained offline, but predictions use LIVE SIM telemetry
 #   - Live anomaly detection
 #   - Live, conditional recommendations
+#
+# ARCHITECTURE NOTE:
+#   Every functional layer below (weather, IP location, the household
+#   simulator, feature engineering, forecasting, anomaly detection,
+#   recommendations, and bill calculation) is IMPORTED from src/ rather
+#   than reimplemented here. This file only wires those modules together
+#   and renders the Streamlit UI.
 # ============================================================================
 
 import base64
 import io
-import math
 import os
-import random
+import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import qrcode
-import requests
 import streamlit as st
+
+# ----------------------------------------------------------------------------
+# Make `src` importable regardless of the working directory Streamlit Cloud
+# launches from.
+# ----------------------------------------------------------------------------
+ROOT_DIR = Path(__file__).resolve().parent.parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
+from src.utils.helpers import MODEL_PATH  # noqa: E402
+from src.realtime.weather_api import (  # noqa: E402
+    GOVERNORATES,
+    get_ip_location,
+    get_live_weather,
+)
+from src.realtime.energy_simulator import (  # noqa: E402
+    DEFAULT_CONTINUOUS_DEVICES,
+    DEFAULT_VARIABLE_DEVICES,
+    DEVICE_CATALOG,
+    HouseholdEnergySimulator,
+)
+from src.features.household_features import (  # noqa: E402
+    create_live_hourly_history,
+    forecast_live_next_hours,
+)
+from src.models.forecasting import load_model  # noqa: E402
+from src.models.anomaly_detection import live_anomaly  # noqa: E402
+from src.recommendations.recommendation_engine import (  # noqa: E402
+    generate_live_recommendations,
+)
+from src.billing.tariff import (  # noqa: E402
+    estimate_actual_monthly_bill,
+    estimate_monthly_from_devices,
+    forecast_cost,
+)
 
 st.set_page_config(
     page_title="EnergySavvy AI | VoltAI",
@@ -174,444 +213,20 @@ st.markdown(
 )
 
 # ----------------------------------------------------------------------------
-# All Egyptian governorates.
-# ----------------------------------------------------------------------------
-GOVERNORATES = {
-    "Cairo": (30.0444, 31.2357),
-    "Alexandria": (31.2001, 29.9187),
-    "Port Said": (31.2653, 32.3019),
-    "Suez": (29.9668, 32.5498),
-    "Damietta": (31.4175, 31.8144),
-    "Dakahlia": (31.0409, 31.3785),
-    "Sharqia": (30.7327, 31.7195),
-    "Qalyubia": (30.2807, 31.2043),
-    "Kafr El Sheikh": (31.1107, 30.9388),
-    "Gharbia": (30.7865, 31.0004),
-    "Monufia": (30.5972, 30.9876),
-    "Beheira": (30.8481, 30.3436),
-    "Ismailia": (30.5965, 32.2715),
-    "Giza": (30.0131, 31.2089),
-    "Fayoum": (29.3084, 30.8428),
-    "Beni Suef": (29.0661, 31.0994),
-    "Minya": (28.1099, 30.7503),
-    "Assiut": (27.1809, 31.1837),
-    "Sohag": (26.5591, 31.6959),
-    "Qena": (26.1551, 32.7160),
-    "Luxor": (25.6872, 32.6396),
-    "Aswan": (24.0889, 32.8998),
-    "Red Sea": (27.2579, 33.8116),
-    "New Valley": (25.4417, 30.5586),
-    "Matrouh": (31.3543, 27.2373),
-    "North Sinai": (31.0409, 33.0114),
-    "South Sinai": (28.5550, 34.7500),
-}
-
-# ----------------------------------------------------------------------------
 # Weather: Open-Meteo is primary and uses the selected governorate coordinates.
-# wttr.in is a fallback, but NEVER hard-coded to Cairo.
+# wttr.in is a fallback, but NEVER hard-coded to Cairo. Logic lives in
+# src.realtime.weather_api; this is just a thin Streamlit cache wrapper.
 # ----------------------------------------------------------------------------
 WEATHER_CACHE_SECONDS = 45
 
-def weather_code_description(code):
-    code = int(code)
-    mapping = {
-        0: "Clear sky", 1: "Mainly clear", 2: "Partly cloudy", 3: "Overcast",
-        45: "Fog", 48: "Depositing rime fog",
-        51: "Light drizzle", 53: "Moderate drizzle", 55: "Dense drizzle",
-        61: "Slight rain", 63: "Moderate rain", 65: "Heavy rain",
-        71: "Slight snow", 73: "Moderate snow", 75: "Heavy snow",
-        80: "Slight rain showers", 81: "Moderate rain showers", 82: "Violent rain showers",
-        95: "Thunderstorm", 96: "Thunderstorm with hail", 99: "Thunderstorm with heavy hail",
-    }
-    return mapping.get(code, "Current conditions")
 
 @st.cache_data(ttl=WEATHER_CACHE_SECONDS, show_spinner=False)
 def get_current_weather(lat, lon):
-    # Primary live source: location-specific Open-Meteo.
-    try:
-        url = (
-            "https://api.open-meteo.com/v1/forecast"
-            f"?latitude={lat}&longitude={lon}"
-            "&current=temperature_2m,relative_humidity_2m,wind_speed_10m,"
-            "apparent_temperature,weather_code"
-            "&timezone=auto"
-        )
-        data = requests.get(url, timeout=8).json()
-        cur = data["current"]
-        return {
-            "temperature_c": float(cur["temperature_2m"]),
-            "humidity_percent": int(round(cur["relative_humidity_2m"])),
-            "wind_speed_kmh": float(cur["wind_speed_10m"]),
-            "feels_like_c": float(cur["apparent_temperature"]),
-            "weather_desc": weather_code_description(cur["weather_code"]),
-            "source": "Open-Meteo live",
-            "is_simulated": False,
-            "timestamp": datetime.now().isoformat(),
-        }
-    except Exception:
-        pass
+    return get_live_weather(lat, lon)
 
-    # Location-specific fallback.
-    try:
-        url = f"https://wttr.in/{lat},{lon}?format=j1"
-        data = requests.get(url, timeout=8).json()
-        c = data["current_condition"][0]
-        return {
-            "temperature_c": float(c["temp_C"]),
-            "humidity_percent": int(c["humidity"]),
-            "wind_speed_kmh": float(c["windspeedKmph"]),
-            "feels_like_c": float(c.get("FeelsLikeC", c["temp_C"])),
-            "weather_desc": c["weatherDesc"][0]["value"],
-            "source": "wttr.in live",
-            "is_simulated": False,
-            "timestamp": datetime.now().isoformat(),
-        }
-    except Exception:
-        # Last-resort fallback only; clearly labelled.
-        hour = datetime.now().hour
-        temp = 28 + 5 * math.sin((hour - 6) / 24 * 2 * math.pi)
-        return {
-            "temperature_c": round(temp, 1),
-            "humidity_percent": 55,
-            "wind_speed_kmh": 12.0,
-            "feels_like_c": round(temp + 2, 1),
-            "weather_desc": "Fallback estimate",
-            "source": "Fallback estimate (API unavailable)",
-            "is_simulated": True,
-            "timestamp": datetime.now().isoformat(),
-        }
-
-def get_ip_location():
-    try:
-        r = requests.get("https://ipapi.co/json/", timeout=5).json()
-        city = r.get("city") or "Cairo"
-        country = r.get("country_name") or "Egypt"
-        lat = float(r.get("latitude", GOVERNORATES["Cairo"][0]))
-        lon = float(r.get("longitude", GOVERNORATES["Cairo"][1]))
-        return {"city": city, "country": country, "latitude": lat, "longitude": lon, "source": "IP auto-detection"}
-    except Exception:
-        return {"city": "Cairo", "country": "Egypt", "latitude": GOVERNORATES["Cairo"][0],
-                "longitude": GOVERNORATES["Cairo"][1], "source": "Cairo fallback"}
 
 # ----------------------------------------------------------------------------
-# 15-device production simulator.
-# Continuous devices are always AVAILABLE/ACTIVE in the dashboard, but billing
-# uses duty cycles so a 1,500 W appliance is not falsely billed 24h at full load.
-# ----------------------------------------------------------------------------
-CONTINUOUS_DEVICES = {
-    "Washing machine": {"kw": 1.20, "duty": 0.03},
-    "Refrigerator": {"kw": 0.15, "duty": 0.35},
-    "Stove": {"kw": 1.20, "duty": 0.05},
-    "Water heater": {"kw": 1.60, "duty": 0.12},
-    "Wi-Fi router": {"kw": 0.02, "duty": 1.00},
-    "Radio": {"kw": 0.03, "duty": 0.15},
-    "Oven": {"kw": 1.50, "duty": 0.03},
-    "Microwave": {"kw": 1.20, "duty": 0.02},
-    "Deep freezer": {"kw": 0.20, "duty": 0.35},
-    "Freezer": {"kw": 0.18, "duty": 0.35},
-}
-VARIABLE_DEVICES = {
-    "Air conditioner": {"kw": 1.50},
-    "Fans": {"kw": 0.075},
-    "Lamps": {"kw": 0.12},
-    "Phone/device chargers": {"kw": 0.04},
-    "Vacuum cleaner": {"kw": 0.70},
-}
-ALL_DEVICE_NAMES = list(CONTINUOUS_DEVICES) + list(VARIABLE_DEVICES)
-
-class EnergySimulator:
-    def __init__(self):
-        self.previous = {name: False for name in ALL_DEVICE_NAMES}
-
-    def probability(self, name, hour, temp):
-        if name in CONTINUOUS_DEVICES:
-            return 1.0
-        if name == "Air conditioner":
-            if temp >= 34: base = 0.90
-            elif temp >= 31: base = 0.72
-            elif temp >= 28: base = 0.48
-            elif temp >= 25: base = 0.24
-            else: base = 0.06
-            if 0 <= hour <= 6: base *= 0.55
-            return min(base, 0.95)
-        if name == "Fans":
-            if temp >= 32: return 0.72
-            if temp >= 29: return 0.52
-            if temp >= 25: return 0.30
-            return 0.07
-        if name == "Lamps":
-            if 18 <= hour <= 23 or 0 <= hour <= 5: return 0.78
-            if 6 <= hour <= 7: return 0.30
-            return 0.035
-        if name == "Phone/device chargers":
-            if 18 <= hour <= 23: return 0.58
-            if 7 <= hour <= 10: return 0.38
-            return 0.10
-        if name == "Vacuum cleaner":
-            return 0.16 if 9 <= hour <= 17 else 0.01
-        return 0.05
-
-    def generate(self, temperature=30.0, when=None):
-        now = when or datetime.now()
-        hour = now.hour
-        # Small continuous variation prevents a flat line while remaining plausible.
-        voltage = np.clip(
-            230 + 3.0 * math.sin((hour / 24) * 2 * math.pi) + np.random.normal(0, 1.2),
-            215, 245
-        )
-        appliances = {}
-        total_w = 0.0
-
-        for name, cfg in CONTINUOUS_DEVICES.items():
-            # Dashboard status: continuously available/active; actual energy uses duty cycle.
-            cycle = cfg["duty"]
-            # Instantaneous compressor/heater/operation variation.
-            active_now = random.random() < min(0.98, 0.12 + cycle * 1.8)
-            power_kw = cfg["kw"] * random.uniform(0.75, 1.10) if active_now else cfg["kw"] * 0.04
-            # Keep "on" status true because these are in the required 24H group.
-            appliances[name] = {
-                "on": True,
-                "power_kw": round(power_kw, 3),
-                "instant_active": active_now,
-                "prob": 1.0,
-                "group": "24-hour household",
-            }
-            total_w += power_kw * 1000
-
-        for name, cfg in VARIABLE_DEVICES.items():
-            p = self.probability(name, hour, temperature)
-            previous = self.previous.get(name, False)
-            stay_p = min(0.96, p + 0.35) if previous else p
-            is_on = random.random() < stay_p
-            power_kw = cfg["kw"] * random.uniform(0.80, 1.15) if is_on else 0.0
-            appliances[name] = {
-                "on": is_on,
-                "power_kw": round(power_kw, 3),
-                "instant_active": is_on,
-                "prob": round(p, 2),
-                "group": "time-dependent",
-            }
-            self.previous[name] = is_on
-            total_w += power_kw * 1000
-
-        total_w = max(120.0, total_w)
-        return {
-            "timestamp": now.isoformat(),
-            "voltage_v": round(float(voltage), 1),
-            "current_a": round(float(total_w / voltage), 2),
-            "power_kw": round(total_w / 1000, 3),
-            "power_w": round(total_w, 1),
-            "appliances": appliances,
-            "is_simulated": True,
-            "source": "Temporary IoT simulator",
-        }
-
-# ----------------------------------------------------------------------------
-# Offline-trained forecast model. Historical data is never loaded/displayed.
-# Live prediction uses a live-generated hourly baseline only.
-# ----------------------------------------------------------------------------
-ROOT_DIR = Path(__file__).resolve().parent.parent
-MODEL_PATH = ROOT_DIR / "models" / "forecast_rf.pkl"
-FEATURE_ORDER = [
-    "hour", "dayofweek", "month", "is_weekend",
-    "lag_1", "lag_2", "lag_3", "lag_24", "lag_168",
-    "roll_24_mean", "roll_24_std",
-]
-
-try:
-    import joblib
-    MODEL_AVAILABLE = MODEL_PATH.exists()
-except Exception:
-    joblib = None
-    MODEL_AVAILABLE = False
-
-def load_model():
-    if MODEL_AVAILABLE:
-        try:
-            return joblib.load(MODEL_PATH)
-        except Exception:
-            return None
-    return None
-
-def build_features_from_values(values, timestamps):
-    s = pd.Series(values, index=pd.DatetimeIndex(timestamps), name="power_kw")
-    f = pd.DataFrame(index=s.index)
-    f["power_kw"] = s
-    f["hour"] = f.index.hour
-    f["dayofweek"] = f.index.dayofweek
-    f["month"] = f.index.month
-    f["is_weekend"] = (f["dayofweek"] >= 5).astype(int)
-    for lag in [1, 2, 3, 24, 168]:
-        f[f"lag_{lag}"] = f["power_kw"].shift(lag)
-    f["roll_24_mean"] = f["power_kw"].shift(1).rolling(24).mean()
-    f["roll_24_std"] = f["power_kw"].shift(1).rolling(24).std()
-    return f
-
-def create_live_hourly_history(simulator, temp_now):
-    # 168 hourly points generated by the CURRENT production simulator.
-    # This is a live/synthetic warm start, not UCI data.
-    now = datetime.now().replace(minute=0, second=0, microsecond=0)
-    timestamps = [now - timedelta(hours=(167 - i)) for i in range(168)]
-    vals = []
-    for ts in timestamps:
-        # Approximate the current live temperature across the simulated day.
-        temp = temp_now + 2.2 * math.sin((ts.hour - now.hour) / 24 * 2 * math.pi)
-        d = simulator.generate(temperature=temp, when=ts)
-        vals.append(d["power_kw"])
-    return pd.Series(vals, index=pd.DatetimeIndex(timestamps), name="power_kw")
-
-def forecast_live_next_hours(model, hourly_series, hours=6):
-    work = hourly_series.copy()
-    preds = []
-    for _ in range(hours):
-        next_time = work.index[-1] + timedelta(hours=1)
-        f = build_features_from_values(work.values, work.index)
-        row = f.iloc[-1].copy()
-        # Build features for the next timestamp from live values.
-        vals = list(work.values)
-        new_features = {
-            "hour": next_time.hour,
-            "dayofweek": next_time.dayofweek,
-            "month": next_time.month,
-            "is_weekend": int(next_time.dayofweek >= 5),
-            "lag_1": vals[-1],
-            "lag_2": vals[-2],
-            "lag_3": vals[-3],
-            "lag_24": vals[-24],
-            "lag_168": vals[-168],
-            "roll_24_mean": float(np.mean(vals[-24:])),
-            "roll_24_std": float(np.std(vals[-24:])),
-        }
-        if model is not None:
-            try:
-                pred = float(model.predict(np.array([[new_features[k] for k in FEATURE_ORDER]]))[0])
-            except Exception:
-                pred = float(np.mean(vals[-6:]))
-        else:
-            pred = float(np.mean(vals[-6:]))
-        # Keep forecast within a sensible range around the live simulator.
-        pred = float(np.clip(pred, 0.08, max(8.0, np.percentile(vals, 95) * 1.5)))
-        preds.append(pred)
-        work.loc[next_time] = pred
-    return preds
-
-# ----------------------------------------------------------------------------
-# Residential bill calculation.
-# The dashboard uses the user's requested scenario/tariff assumptions.
-# ----------------------------------------------------------------------------
-BILL_TIERS = [
-    (350, 1.72),
-    (650, 2.18),
-    (1000, 2.40),
-    (float("inf"), 2.74),
-]
-
-def calculate_monthly_bill(monthly_kwh):
-    # Demo tariff requested for the jury-facing estimate.
-    # Above 1,000 kWh the 2.74 EGP/kWh rate applies to the full consumption.
-    kwh = max(0.0, float(monthly_kwh))
-    if kwh <= 350:
-        rate = 1.72
-    elif kwh <= 650:
-        rate = 2.18
-    elif kwh <= 1000:
-        rate = 2.40
-    else:
-        rate = 2.74
-    return round(kwh * rate, 2)
-
-def estimate_monthly_from_devices(simulator, temp_now):
-    # Expected daily energy based on device power x expected operating hours.
-    now_hour = datetime.now().hour
-    daily_kwh = 0.0
-    rows = []
-
-    for name, cfg in CONTINUOUS_DEVICES.items():
-        hours = 24.0 * cfg["duty"]
-        kwh = cfg["kw"] * hours
-        daily_kwh += kwh
-        rows.append((name, cfg["kw"], hours, kwh))
-
-    for name, cfg in VARIABLE_DEVICES.items():
-        expected_hours = sum(
-            simulator.probability(name, h, temp_now + 2.0 * math.sin((h - now_hour) / 24 * 2 * math.pi))
-            for h in range(24)
-        )
-        kwh = cfg["kw"] * expected_hours
-        daily_kwh += kwh
-        rows.append((name, cfg["kw"], expected_hours, kwh))
-
-    monthly_kwh = daily_kwh * 30.0
-    bill = calculate_monthly_bill(monthly_kwh)
-    return daily_kwh, monthly_kwh, bill, rows
-
-# ----------------------------------------------------------------------------
-# Live anomaly detection based ONLY on the current live stream.
-# A rolling live baseline is maintained, so the result can change over time.
-# ----------------------------------------------------------------------------
-def live_anomaly(power_kw, history):
-    if len(history) < 8:
-        return False, 0.0, float(np.mean(history)) if history else power_kw
-    arr = np.array(history[-40:], dtype=float)
-    baseline = float(np.mean(arr[:-1])) if len(arr) > 1 else float(arr.mean())
-    std = float(np.std(arr[:-1])) if len(arr) > 2 else 0.08
-    std = max(std, 0.06)
-    z = (power_kw - baseline) / std
-    # Dynamic threshold: anomaly only when deviation is substantial and persistent
-    is_anomaly = abs(z) >= 3.2 and abs(power_kw - baseline) >= 0.45
-    return bool(is_anomaly), float(z), baseline
-
-# ----------------------------------------------------------------------------
-# Conditional recommendation engine. It returns 0..N messages based on LIVE
-# device states, current temperature, power, time, and anomaly state.
-# ----------------------------------------------------------------------------
-def generate_live_recommendations(live, is_anomaly, z, monthly_kwh):
-    e = live["energy"]
-    w = live["weather"]
-    now = datetime.now()
-    recs = []
-    appliances = e["appliances"]
-
-    ac = appliances["Air conditioner"]
-    fans = appliances["Fans"]
-    lamps = appliances["Lamps"]
-    chargers = appliances["Phone/device chargers"]
-    vacuum = appliances["Vacuum cleaner"]
-
-    if w["temperature_c"] >= 32 and ac["on"] and ac["power_kw"] >= 1.2:
-        recs.append(("Temperature / AC", "Medium",
-                     f"High outdoor temperature ({w['temperature_c']:.1f}°C) and AC load detected. Set the AC near 25–26°C instead of lowering it excessively.",
-                     0.18))
-    if e["power_kw"] >= 3.8:
-        recs.append(("High instantaneous load", "High",
-                     f"Current demand is {e['power_kw']:.2f} kW. Consider delaying a flexible heavy appliance until another load finishes.",
-                     0.30))
-    if is_anomaly:
-        recs.append(("Unusual consumption", "High",
-                     f"Current power is {e['power_kw']:.2f} kW, about {abs(z):.1f} standard deviations from the recent live baseline. Check newly started heavy devices.",
-                     0.25))
-    if 18 <= now.hour <= 23 and lamps["on"] and ac["on"]:
-        recs.append(("Evening optimization", "Low",
-                     "AC and lighting are both active during the evening. Turn off unnecessary lamps in unoccupied rooms.",
-                     0.08))
-    if chargers["on"] and 0 <= now.hour <= 6:
-        recs.append(("Standby / charging", "Low",
-                     "Phone/device charging is active during the late-night period. Unplug chargers when devices reach full charge.",
-                     0.03))
-    if vacuum["on"]:
-        recs.append(("Flexible appliance", "Low",
-                     "Vacuum cleaner is active. It is a flexible load; schedule similar non-urgent tasks outside the household peak period.",
-                     0.05))
-    if monthly_kwh > 1000:
-        recs.append(("Monthly consumption", "Medium",
-                     f"Projected usage is {monthly_kwh:.0f} kWh/month. Reducing high-load operating hours can move the household toward a lower consumption range.",
-                     4.0))
-
-    # Never repeat the same set every refresh unless the underlying condition remains.
-    return recs[:4]
-
-# ----------------------------------------------------------------------------
-# Sidebar: location + team.
+# Sidebar: location, household devices, team.
 # ----------------------------------------------------------------------------
 with st.sidebar:
     st.markdown("## EnergySavvy AI")
@@ -635,6 +250,39 @@ with st.sidebar:
         selected_governorate = ip["city"]
         selected_lat, selected_lon = ip["latitude"], ip["longitude"]
         selected_source = ip["source"]
+
+    st.markdown("---")
+    st.markdown("### Household devices")
+    st.caption(
+        "Choose which electrical appliances exist in this household, and "
+        "whether each one behaves as a 24-hour device or a time-dependent "
+        "device. The simulator, forecast, and bill below only use the "
+        "devices selected here."
+    )
+    catalog_names = list(DEVICE_CATALOG.keys())
+
+    selected_continuous = st.multiselect(
+        "24-hour household devices",
+        options=catalog_names,
+        default=DEFAULT_CONTINUOUS_DEVICES,
+        key="continuous_devices_select",
+        help="Devices that remain available/active as part of the household "
+             "baseline; their actual energy use follows a realistic duty cycle.",
+    )
+    remaining_for_variable = [n for n in catalog_names if n not in selected_continuous]
+    default_variable = [n for n in DEFAULT_VARIABLE_DEVICES if n in remaining_for_variable]
+    selected_variable = st.multiselect(
+        "Time-dependent devices",
+        options=remaining_for_variable,
+        default=default_variable,
+        key="variable_devices_select",
+        help="Devices that switch on and off according to time of day, "
+             "temperature, and stochastic household behavior.",
+    )
+
+    if not selected_continuous and not selected_variable:
+        st.error("Select at least one household device to run the live dashboard.")
+        st.stop()
 
     st.markdown("---")
     st.markdown("### Live pipeline")
@@ -702,10 +350,22 @@ with st.sidebar:
         )
 
 # ----------------------------------------------------------------------------
+# Build the device configs used by the simulator/bill from the catalog +
+# the user's sidebar selection.
+# ----------------------------------------------------------------------------
+continuous_devices_cfg = {
+    name: {"kw": DEVICE_CATALOG[name]["kw"], "duty": DEVICE_CATALOG[name]["duty"]}
+    for name in selected_continuous
+}
+variable_devices_cfg = {
+    name: {"kw": DEVICE_CATALOG[name]["kw"], "profile": DEVICE_CATALOG[name]["profile"]}
+    for name in selected_variable
+}
+TOTAL_DEVICES = len(continuous_devices_cfg) + len(variable_devices_cfg)
+
+# ----------------------------------------------------------------------------
 # Persistent live state.
 # ----------------------------------------------------------------------------
-if "simulator" not in st.session_state:
-    st.session_state.simulator = EnergySimulator()
 if "history" not in st.session_state:
     st.session_state.history = []
 if "hourly_live_history" not in st.session_state:
@@ -713,7 +373,15 @@ if "hourly_live_history" not in st.session_state:
 if "last_hour_bucket" not in st.session_state:
     st.session_state.last_hour_bucket = None
 
-# Recreate engine only when location changes.
+# Recreate the simulator whenever the selected device list changes.
+device_key = (tuple(sorted(selected_continuous)), tuple(sorted(selected_variable)))
+if st.session_state.get("device_key") != device_key or "simulator" not in st.session_state:
+    st.session_state.simulator = HouseholdEnergySimulator(continuous_devices_cfg, variable_devices_cfg)
+    st.session_state.device_key = device_key
+    st.session_state.hourly_live_history = None
+    st.session_state.history = []
+
+# Recreate the hourly warm-start only when location changes.
 location_key = (round(float(selected_lat), 4), round(float(selected_lon), 4), selected_governorate)
 if st.session_state.get("location_key") != location_key:
     st.session_state.location_key = location_key
@@ -764,9 +432,9 @@ def render_live_dashboard():
     e = live["energy"]
     w = live["weather"]
     active_variable = sum(
-        1 for name in VARIABLE_DEVICES if e["appliances"][name]["on"]
+        1 for name in variable_devices_cfg if e["appliances"].get(name, {}).get("on")
     )
-    active_total = len(CONTINUOUS_DEVICES) + active_variable
+    active_total = len(continuous_devices_cfg) + active_variable
 
     st.markdown('<div class="section">Live System Dashboard</div>', unsafe_allow_html=True)
     c1, c2, c3, c4 = st.columns(4)
@@ -791,7 +459,7 @@ def render_live_dashboard():
             f'<div class="kpi"><div class="kpi-label">Instantaneous power</div>'
             f'<div class="kpi-value">{e["power_kw"]:.2f} kW</div>'
             f'<div class="kpi-sub">{e["power_w"]:.0f} W | {e["voltage_v"]:.1f} V | {e["current_a"]:.2f} A<br>'
-            f'<span class="status-sim">SIM IoT telemetry • {active_total}/15 active</span></div></div>',
+            f'<span class="status-sim">SIM IoT telemetry • {active_total}/{TOTAL_DEVICES} active</span></div></div>',
             unsafe_allow_html=True,
         )
     with c4:
@@ -829,12 +497,14 @@ def render_live_dashboard():
     # ------------------------------------------------------------------------
     # HOUSEHOLD DEVICE DASHBOARD
     # ------------------------------------------------------------------------
-    st.markdown('<div class="section">Household Device Dashboard — 15 Devices</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="section">Household Device Dashboard — {TOTAL_DEVICES} Devices</div>', unsafe_allow_html=True)
     left, right = st.columns(2)
     with left:
         st.markdown("#### 24-hour household devices")
         st.caption("These devices remain available/active as part of the household baseline; their actual energy contribution uses realistic duty cycles.")
-        for name in CONTINUOUS_DEVICES:
+        if not continuous_devices_cfg:
+            st.markdown('<div class="small-note">No 24-hour devices selected in the sidebar.</div>', unsafe_allow_html=True)
+        for name in continuous_devices_cfg:
             d = e["appliances"][name]
             st.markdown(
                 f'<div class="device-card"><div class="device-title">{name.upper()}</div>'
@@ -845,7 +515,9 @@ def render_live_dashboard():
     with right:
         st.markdown("#### Time-dependent devices")
         st.caption("These devices switch according to time of day, temperature, and stochastic household behavior.")
-        for name in VARIABLE_DEVICES:
+        if not variable_devices_cfg:
+            st.markdown('<div class="small-note">No time-dependent devices selected in the sidebar.</div>', unsafe_allow_html=True)
+        for name in variable_devices_cfg:
             d = e["appliances"][name]
             state_color = "#86efac" if d["on"] else "#64748b"
             st.markdown(
@@ -861,7 +533,8 @@ def render_live_dashboard():
     st.markdown('<div class="section">1. Forecast Future Consumption & Monthly Bill</div>', unsafe_allow_html=True)
     model = load_model()
     hourly = st.session_state.hourly_live_history
-    preds = forecast_live_next_hours(model, hourly, hours=6)
+    preds_24h = forecast_live_next_hours(model, hourly, hours=24)
+    preds = preds_24h[:6]
     forecast_times = [hourly.index[-1] + timedelta(hours=i) for i in range(1, 7)]
 
     cf1, cf2 = st.columns([2.1, 1])
@@ -894,6 +567,37 @@ def render_live_dashboard():
         st.metric("Projected monthly use", f"{monthly_kwh:.0f} kWh")
         st.metric("Projected monthly bill", f"{monthly_bill:,.0f} EGP")
         st.caption("Estimate = device power × expected daily operating hours × 30 days, then residential tier pricing.")
+
+    # -- New: actual bill + next-hour / next-24h bill, from the forecast model --
+    actual_monthly_kwh, actual_monthly_bill = estimate_actual_monthly_bill(e["power_kw"])
+    next_hour_kwh, next_hour_cost, eff_rate = forecast_cost([preds_24h[0]], monthly_kwh)
+    next_24h_kwh, next_24h_cost, _ = forecast_cost(preds_24h, monthly_kwh)
+
+    bill1, bill2, bill3 = st.columns(3)
+    with bill1:
+        st.metric(
+            "Actual bill (current live rate)",
+            f"{actual_monthly_bill:,.0f} EGP",
+            help="What the household would pay if the current instantaneous "
+                 "live demand held constant for 24h/day across 30 days.",
+        )
+    with bill2:
+        st.metric(
+            "Next-hour bill",
+            f"{next_hour_cost:,.2f} EGP",
+            f"{next_hour_kwh:.2f} kWh forecast",
+        )
+    with bill3:
+        st.metric(
+            "Next-24h bill",
+            f"{next_24h_cost:,.2f} EGP",
+            f"{next_24h_kwh:.1f} kWh forecast",
+        )
+    st.caption(
+        f"Next-hour and next-24h bills apply the household's current effective "
+        f"tariff rate ({eff_rate:.2f} EGP/kWh, from the Egyptian residential "
+        f"tiers below) to the forecast model's live predictions."
+    )
 
     with st.expander("Monthly bill calculation — live household assumptions"):
         bill_df = pd.DataFrame(bill_rows, columns=["Device", "Rated kW", "Expected hours/day", "Expected kWh/day"])
