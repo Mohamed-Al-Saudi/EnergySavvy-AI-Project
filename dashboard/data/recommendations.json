@@ -1,0 +1,802 @@
+[
+  {
+    "timestamp":"2010-11-13T07:00:00.000",
+    "type":"Morning_Peak",
+    "severity":"Medium",
+    "message":"Morning spike of 2.13 kW at 07:00 (daily average 1.27 kW). Several appliances starting at the same time \u2014 staggering the start-up order (heaters, kettles, cooking, hot-water) smooths the load and avoids peak-rate charges.",
+    "estimated_saving_kwh":0.32,
+    "condition":"hour=7 & kW>1.65"
+  },
+  {
+    "timestamp":"2010-11-13T13:00:00.000",
+    "type":"Midday_High",
+    "severity":"Medium",
+    "message":"Daytime spike of 2.06 kW at 13:00 (daily average 1.17 kW). A large appliance is likely running outside its usual schedule. Review whether it can be spread over a longer period or scheduled for a cheaper window.",
+    "estimated_saving_kwh":0.247,
+    "condition":"hour=13 & kW>1.75"
+  },
+  {
+    "timestamp":"2010-11-13T13:00:00.000",
+    "type":"Sustained_High_Load",
+    "severity":"Medium",
+    "message":"Consumption stayed above 2.0 kW for 5 consecutive hours starting 2010-11-13 13:00. Sustained high load usually means a large appliance is running longer than needed or several mid-load devices overlap. Consider shortening cycles or staggering them.",
+    "estimated_saving_kwh":0.351,
+    "condition":"kW>2.0 for 5h"
+  },
+  {
+    "timestamp":"2010-11-13T14:00:00.000",
+    "type":"Midday_High",
+    "severity":"Medium",
+    "message":"Daytime spike of 2.10 kW at 14:00 (daily average 1.20 kW). A large appliance is likely running outside its usual schedule. Review whether it can be spread over a longer period or scheduled for a cheaper window.",
+    "estimated_saving_kwh":0.252,
+    "condition":"hour=14 & kW>1.80"
+  },
+  {
+    "timestamp":"2010-11-13T15:00:00.000",
+    "type":"Midday_High",
+    "severity":"Medium",
+    "message":"Daytime spike of 2.20 kW at 15:00 (daily average 1.22 kW). A large appliance is likely running outside its usual schedule. Review whether it can be spread over a longer period or scheduled for a cheaper window.",
+    "estimated_saving_kwh":0.264,
+    "condition":"hour=15 & kW>1.82"
+  },
+  {
+    "timestamp":"2010-11-13T16:00:00.000",
+    "type":"Midday_High",
+    "severity":"Medium",
+    "message":"Daytime spike of 3.22 kW at 16:00 (daily average 1.29 kW). A large appliance is likely running outside its usual schedule. Review whether it can be spread over a longer period or scheduled for a cheaper window.",
+    "estimated_saving_kwh":0.387,
+    "condition":"hour=16 & kW>1.94"
+  },
+  {
+    "timestamp":"2010-11-13T18:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"Evening peak usage of 1.72 kW at 18:00 (vs daily average 1.28 kW). Consider moving flexible tasks such as laundry, dishwashing or EV charging to the off-peak window (13:00\u201316:00) to reduce tariff cost by roughly 20%.",
+    "estimated_saving_kwh":0.343,
+    "condition":"hour=18 & kW>1.54"
+  },
+  {
+    "timestamp":"2010-11-13T19:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"Evening peak usage of 2.29 kW at 19:00 (vs daily average 1.28 kW). Consider moving flexible tasks such as laundry, dishwashing or EV charging to the off-peak window (13:00\u201316:00) to reduce tariff cost by roughly 20%.",
+    "estimated_saving_kwh":0.458,
+    "condition":"hour=19 & kW>1.53"
+  },
+  {
+    "timestamp":"2010-11-13T20:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"Evening peak usage of 1.71 kW at 20:00 (vs daily average 1.28 kW). Consider moving flexible tasks such as laundry, dishwashing or EV charging to the off-peak window (13:00\u201316:00) to reduce tariff cost by roughly 20%.",
+    "estimated_saving_kwh":0.343,
+    "condition":"hour=20 & kW>1.53"
+  },
+  {
+    "timestamp":"2010-11-13T21:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"Evening peak usage of 1.71 kW at 21:00 (vs daily average 1.30 kW). Consider moving flexible tasks such as laundry, dishwashing or EV charging to the off-peak window (13:00\u201316:00) to reduce tariff cost by roughly 20%.",
+    "estimated_saving_kwh":0.341,
+    "condition":"hour=21 & kW>1.56"
+  },
+  {
+    "timestamp":"2010-11-14T00:00:00.000",
+    "type":"Night_Heavy_Load",
+    "severity":"Medium",
+    "message":"Unusually heavy overnight load of 1.84 kW at 00:00. Possible causes: a heating\/cooling unit left on, a water-heating cycle at the wrong time, or an appliance running longer than intended. Check schedules so only essential items run at night.",
+    "estimated_saving_kwh":0.403,
+    "condition":"hour in 0-5 & kW>1.5"
+  },
+  {
+    "timestamp":"2010-11-14T01:00:00.000",
+    "type":"Night_Heavy_Load",
+    "severity":"Medium",
+    "message":"Unusually heavy overnight load of 1.57 kW at 01:00. Possible causes: a heating\/cooling unit left on, a water-heating cycle at the wrong time, or an appliance running longer than intended. Check schedules so only essential items run at night.",
+    "estimated_saving_kwh":0.32,
+    "condition":"hour in 0-5 & kW>1.5"
+  },
+  {
+    "timestamp":"2010-11-14T01:00:00.000",
+    "type":"Night_Idle_Waste",
+    "severity":"Low",
+    "message":"Nighttime idle draw of 1.57 kW at 01:00 while the house should be quiet (baseline \u2248 0.48 kW). Possible causes: standby\/always-on devices, a heating\/cooling unit cycling, or a charger left plugged in. Turning these off can trim the overnight baseline.",
+    "estimated_saving_kwh":1.268,
+    "condition":"hour in 1-5 & kW>0.8"
+  },
+  {
+    "timestamp":"2010-11-14T02:00:00.000",
+    "type":"Night_Idle_Waste",
+    "severity":"Low",
+    "message":"Nighttime idle draw of 1.00 kW at 02:00 while the house should be quiet (baseline \u2248 0.48 kW). Possible causes: standby\/always-on devices, a heating\/cooling unit cycling, or a charger left plugged in. Turning these off can trim the overnight baseline.",
+    "estimated_saving_kwh":0.702,
+    "condition":"hour in 1-5 & kW>0.8"
+  },
+  {
+    "timestamp":"2010-11-14T15:00:00.000",
+    "type":"Midday_High",
+    "severity":"Medium",
+    "message":"Daytime spike of 4.16 kW at 15:00 (daily average 1.47 kW). A large appliance is likely running outside its usual schedule. Review whether it can be spread over a longer period or scheduled for a cheaper window.",
+    "estimated_saving_kwh":0.499,
+    "condition":"hour=15 & kW>2.20"
+  },
+  {
+    "timestamp":"2010-11-14T15:00:00.000",
+    "type":"Sustained_High_Load",
+    "severity":"Medium",
+    "message":"Consumption stayed above 2.0 kW for 4 consecutive hours starting 2010-11-14 15:00. Sustained high load usually means a large appliance is running longer than needed or several mid-load devices overlap. Consider shortening cycles or staggering them.",
+    "estimated_saving_kwh":0.561,
+    "condition":"kW>2.0 for 4h"
+  },
+  {
+    "timestamp":"2010-11-14T15:00:00.000",
+    "type":"Peak_to_Average_Ratio",
+    "severity":"High",
+    "message":"Extreme peak of 4.16 kW at 2010-11-14 15:00 \u2014 more than 3\u00d7 your overall mean of 1.09 kW. Very sharp peaks drive demand charges and stress the wiring. Consider splitting the load or delaying part of it.",
+    "estimated_saving_kwh":3.066,
+    "condition":"kW>3*overall_mean"
+  },
+  {
+    "timestamp":"2010-11-14T15:00:00.000",
+    "type":"Consumption_Spike",
+    "severity":"High",
+    "message":"Sharp spike to 4.16 kW at 2010-11-14 15:00 vs recent 24h average of 1.39 kW. This is an outlier relative to your normal rhythm and often means multiple large appliances were started together. Avoid simultaneous start-ups to smooth the load.",
+    "estimated_saving_kwh":2.768,
+    "condition":"kW>2*roll_24_mean+1"
+  },
+  {
+    "timestamp":"2010-11-14T15:00:00.000",
+    "type":"Anomaly_Inspection",
+    "severity":"High",
+    "message":"Unexpected consumption of 4.16 kW at 2010-11-14 15:00 vs an expected 1.49 kW (\u0394 +2.67 kW). Detected as an anomaly in notebook 04. Possible causes to check: an appliance left running, an unusual load combination, or an unplanned high-power cycle.",
+    "estimated_saving_kwh":2.667,
+    "condition":"residual=2.67 | z_score=4.66"
+  },
+  {
+    "timestamp":"2010-11-14T16:00:00.000",
+    "type":"Midday_High",
+    "severity":"Medium",
+    "message":"Daytime spike of 2.84 kW at 16:00 (daily average 1.45 kW). A large appliance is likely running outside its usual schedule. Review whether it can be spread over a longer period or scheduled for a cheaper window.",
+    "estimated_saving_kwh":0.34,
+    "condition":"hour=16 & kW>2.18"
+  },
+  {
+    "timestamp":"2010-11-14T18:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"Evening peak usage of 2.38 kW at 18:00 (vs daily average 1.46 kW). Consider moving flexible tasks such as laundry, dishwashing or EV charging to the off-peak window (13:00\u201316:00) to reduce tariff cost by roughly 20%.",
+    "estimated_saving_kwh":0.477,
+    "condition":"hour=18 & kW>1.76"
+  },
+  {
+    "timestamp":"2010-11-14T20:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"Evening peak usage of 2.63 kW at 20:00 (vs daily average 1.47 kW). Consider moving flexible tasks such as laundry, dishwashing or EV charging to the off-peak window (13:00\u201316:00) to reduce tariff cost by roughly 20%.",
+    "estimated_saving_kwh":0.526,
+    "condition":"hour=20 & kW>1.76"
+  },
+  {
+    "timestamp":"2010-11-14T21:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"Evening peak usage of 2.55 kW at 21:00 (vs daily average 1.51 kW). Consider moving flexible tasks such as laundry, dishwashing or EV charging to the off-peak window (13:00\u201316:00) to reduce tariff cost by roughly 20%.",
+    "estimated_saving_kwh":0.51,
+    "condition":"hour=21 & kW>1.81"
+  },
+  {
+    "timestamp":"2010-11-15T07:00:00.000",
+    "type":"Morning_Peak",
+    "severity":"Medium",
+    "message":"Morning spike of 2.63 kW at 07:00 (daily average 1.40 kW). Several appliances starting at the same time \u2014 staggering the start-up order (heaters, kettles, cooking, hot-water) smooths the load and avoids peak-rate charges.",
+    "estimated_saving_kwh":0.394,
+    "condition":"hour=7 & kW>1.82"
+  },
+  {
+    "timestamp":"2010-11-15T12:00:00.000",
+    "type":"Peak_to_Average_Ratio",
+    "severity":"High",
+    "message":"Extreme peak of 3.32 kW at 2010-11-15 12:00 \u2014 more than 3\u00d7 your overall mean of 1.09 kW. Very sharp peaks drive demand charges and stress the wiring. Consider splitting the load or delaying part of it.",
+    "estimated_saving_kwh":2.231,
+    "condition":"kW>3*overall_mean"
+  },
+  {
+    "timestamp":"2010-11-15T12:00:00.000",
+    "type":"Midday_High",
+    "severity":"Medium",
+    "message":"Daytime spike of 3.32 kW at 12:00 (daily average 1.56 kW). A large appliance is likely running outside its usual schedule. Review whether it can be spread over a longer period or scheduled for a cheaper window.",
+    "estimated_saving_kwh":0.399,
+    "condition":"hour=12 & kW>2.34"
+  },
+  {
+    "timestamp":"2010-11-15T13:00:00.000",
+    "type":"Midday_High",
+    "severity":"Medium",
+    "message":"Daytime spike of 2.81 kW at 13:00 (daily average 1.62 kW). A large appliance is likely running outside its usual schedule. Review whether it can be spread over a longer period or scheduled for a cheaper window.",
+    "estimated_saving_kwh":0.337,
+    "condition":"hour=13 & kW>2.44"
+  },
+  {
+    "timestamp":"2010-11-15T19:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"Evening peak usage of 1.58 kW at 19:00 (vs daily average 1.22 kW). Consider moving flexible tasks such as laundry, dishwashing or EV charging to the off-peak window (13:00\u201316:00) to reduce tariff cost by roughly 20%.",
+    "estimated_saving_kwh":0.316,
+    "condition":"hour=19 & kW>1.47"
+  },
+  {
+    "timestamp":"2010-11-15T20:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"Evening peak usage of 2.99 kW at 20:00 (vs daily average 1.24 kW). Consider moving flexible tasks such as laundry, dishwashing or EV charging to the off-peak window (13:00\u201316:00) to reduce tariff cost by roughly 20%.",
+    "estimated_saving_kwh":0.599,
+    "condition":"hour=20 & kW>1.49"
+  },
+  {
+    "timestamp":"2010-11-15T21:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"Evening peak usage of 1.51 kW at 21:00 (vs daily average 1.19 kW). Consider moving flexible tasks such as laundry, dishwashing or EV charging to the off-peak window (13:00\u201316:00) to reduce tariff cost by roughly 20%.",
+    "estimated_saving_kwh":0.302,
+    "condition":"hour=21 & kW>1.43"
+  },
+  {
+    "timestamp":"2010-11-16T02:00:00.000",
+    "type":"Night_Idle_Waste",
+    "severity":"Low",
+    "message":"Nighttime idle draw of 1.03 kW at 02:00 while the house should be quiet (baseline \u2248 0.48 kW). Possible causes: standby\/always-on devices, a heating\/cooling unit cycling, or a charger left plugged in. Turning these off can trim the overnight baseline.",
+    "estimated_saving_kwh":0.727,
+    "condition":"hour in 1-5 & kW>0.8"
+  },
+  {
+    "timestamp":"2010-11-16T07:00:00.000",
+    "type":"Morning_Peak",
+    "severity":"Medium",
+    "message":"Morning spike of 2.46 kW at 07:00 (daily average 1.22 kW). Several appliances starting at the same time \u2014 staggering the start-up order (heaters, kettles, cooking, hot-water) smooths the load and avoids peak-rate charges.",
+    "estimated_saving_kwh":0.368,
+    "condition":"hour=7 & kW>1.59"
+  },
+  {
+    "timestamp":"2010-11-16T08:00:00.000",
+    "type":"Morning_Peak",
+    "severity":"Medium",
+    "message":"Morning spike of 1.68 kW at 08:00 (daily average 1.23 kW). Several appliances starting at the same time \u2014 staggering the start-up order (heaters, kettles, cooking, hot-water) smooths the load and avoids peak-rate charges.",
+    "estimated_saving_kwh":0.252,
+    "condition":"hour=8 & kW>1.60"
+  },
+  {
+    "timestamp":"2010-11-16T18:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"Evening peak usage of 2.06 kW at 18:00 (vs daily average 1.04 kW). Consider moving flexible tasks such as laundry, dishwashing or EV charging to the off-peak window (13:00\u201316:00) to reduce tariff cost by roughly 20%.",
+    "estimated_saving_kwh":0.413,
+    "condition":"hour=18 & kW>1.25"
+  },
+  {
+    "timestamp":"2010-11-16T19:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"Evening peak usage of 1.99 kW at 19:00 (vs daily average 1.06 kW). Consider moving flexible tasks such as laundry, dishwashing or EV charging to the off-peak window (13:00\u201316:00) to reduce tariff cost by roughly 20%.",
+    "estimated_saving_kwh":0.397,
+    "condition":"hour=19 & kW>1.27"
+  },
+  {
+    "timestamp":"2010-11-16T20:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"Evening peak usage of 2.18 kW at 20:00 (vs daily average 1.03 kW). Consider moving flexible tasks such as laundry, dishwashing or EV charging to the off-peak window (13:00\u201316:00) to reduce tariff cost by roughly 20%.",
+    "estimated_saving_kwh":0.435,
+    "condition":"hour=20 & kW>1.23"
+  },
+  {
+    "timestamp":"2010-11-16T21:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"Evening peak usage of 2.53 kW at 21:00 (vs daily average 1.07 kW). Consider moving flexible tasks such as laundry, dishwashing or EV charging to the off-peak window (13:00\u201316:00) to reduce tariff cost by roughly 20%.",
+    "estimated_saving_kwh":0.506,
+    "condition":"hour=21 & kW>1.28"
+  },
+  {
+    "timestamp":"2010-11-17T07:00:00.000",
+    "type":"Morning_Peak",
+    "severity":"Medium",
+    "message":"Morning spike of 2.76 kW at 07:00 (daily average 1.05 kW). Several appliances starting at the same time \u2014 staggering the start-up order (heaters, kettles, cooking, hot-water) smooths the load and avoids peak-rate charges.",
+    "estimated_saving_kwh":0.414,
+    "condition":"hour=7 & kW>1.37"
+  },
+  {
+    "timestamp":"2010-11-17T18:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"Evening peak usage of 1.63 kW at 18:00 (vs daily average 1.10 kW). Consider moving flexible tasks such as laundry, dishwashing or EV charging to the off-peak window (13:00\u201316:00) to reduce tariff cost by roughly 20%.",
+    "estimated_saving_kwh":0.326,
+    "condition":"hour=18 & kW>1.32"
+  },
+  {
+    "timestamp":"2010-11-17T19:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"Evening peak usage of 2.33 kW at 19:00 (vs daily average 1.11 kW). Consider moving flexible tasks such as laundry, dishwashing or EV charging to the off-peak window (13:00\u201316:00) to reduce tariff cost by roughly 20%.",
+    "estimated_saving_kwh":0.465,
+    "condition":"hour=19 & kW>1.33"
+  },
+  {
+    "timestamp":"2010-11-17T20:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"Evening peak usage of 2.24 kW at 20:00 (vs daily average 1.11 kW). Consider moving flexible tasks such as laundry, dishwashing or EV charging to the off-peak window (13:00\u201316:00) to reduce tariff cost by roughly 20%.",
+    "estimated_saving_kwh":0.449,
+    "condition":"hour=20 & kW>1.34"
+  },
+  {
+    "timestamp":"2010-11-17T21:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"Evening peak usage of 1.74 kW at 21:00 (vs daily average 1.08 kW). Consider moving flexible tasks such as laundry, dishwashing or EV charging to the off-peak window (13:00\u201316:00) to reduce tariff cost by roughly 20%.",
+    "estimated_saving_kwh":0.348,
+    "condition":"hour=21 & kW>1.30"
+  },
+  {
+    "timestamp":"2010-11-18T03:00:00.000",
+    "type":"Night_Idle_Waste",
+    "severity":"Low",
+    "message":"Nighttime idle draw of 1.02 kW at 03:00 while the house should be quiet (baseline \u2248 0.48 kW). Possible causes: standby\/always-on devices, a heating\/cooling unit cycling, or a charger left plugged in. Turning these off can trim the overnight baseline.",
+    "estimated_saving_kwh":0.719,
+    "condition":"hour in 1-5 & kW>0.8"
+  },
+  {
+    "timestamp":"2010-11-18T07:00:00.000",
+    "type":"Morning_Peak",
+    "severity":"Medium",
+    "message":"Morning spike of 2.69 kW at 07:00 (daily average 1.12 kW). Several appliances starting at the same time \u2014 staggering the start-up order (heaters, kettles, cooking, hot-water) smooths the load and avoids peak-rate charges.",
+    "estimated_saving_kwh":0.403,
+    "condition":"hour=7 & kW>1.46"
+  },
+  {
+    "timestamp":"2010-11-18T08:00:00.000",
+    "type":"Morning_Peak",
+    "severity":"Medium",
+    "message":"Morning spike of 1.53 kW at 08:00 (daily average 1.12 kW). Several appliances starting at the same time \u2014 staggering the start-up order (heaters, kettles, cooking, hot-water) smooths the load and avoids peak-rate charges.",
+    "estimated_saving_kwh":0.23,
+    "condition":"hour=8 & kW>1.46"
+  },
+  {
+    "timestamp":"2010-11-18T18:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"Evening peak usage of 2.73 kW at 18:00 (vs daily average 1.14 kW). Consider moving flexible tasks such as laundry, dishwashing or EV charging to the off-peak window (13:00\u201316:00) to reduce tariff cost by roughly 20%.",
+    "estimated_saving_kwh":0.546,
+    "condition":"hour=18 & kW>1.37"
+  },
+  {
+    "timestamp":"2010-11-18T19:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"Evening peak usage of 2.57 kW at 19:00 (vs daily average 1.15 kW). Consider moving flexible tasks such as laundry, dishwashing or EV charging to the off-peak window (13:00\u201316:00) to reduce tariff cost by roughly 20%.",
+    "estimated_saving_kwh":0.515,
+    "condition":"hour=19 & kW>1.39"
+  },
+  {
+    "timestamp":"2010-11-18T20:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"Evening peak usage of 2.16 kW at 20:00 (vs daily average 1.15 kW). Consider moving flexible tasks such as laundry, dishwashing or EV charging to the off-peak window (13:00\u201316:00) to reduce tariff cost by roughly 20%.",
+    "estimated_saving_kwh":0.433,
+    "condition":"hour=20 & kW>1.38"
+  },
+  {
+    "timestamp":"2010-11-18T21:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"Evening peak usage of 1.93 kW at 21:00 (vs daily average 1.16 kW). Consider moving flexible tasks such as laundry, dishwashing or EV charging to the off-peak window (13:00\u201316:00) to reduce tariff cost by roughly 20%.",
+    "estimated_saving_kwh":0.387,
+    "condition":"hour=21 & kW>1.39"
+  },
+  {
+    "timestamp":"2010-11-19T02:00:00.000",
+    "type":"Night_Idle_Waste",
+    "severity":"Low",
+    "message":"Nighttime idle draw of 0.95 kW at 02:00 while the house should be quiet (baseline \u2248 0.48 kW). Possible causes: standby\/always-on devices, a heating\/cooling unit cycling, or a charger left plugged in. Turning these off can trim the overnight baseline.",
+    "estimated_saving_kwh":0.655,
+    "condition":"hour in 1-5 & kW>0.8"
+  },
+  {
+    "timestamp":"2010-11-19T07:00:00.000",
+    "type":"Morning_Peak",
+    "severity":"Medium",
+    "message":"Morning spike of 2.20 kW at 07:00 (daily average 1.09 kW). Several appliances starting at the same time \u2014 staggering the start-up order (heaters, kettles, cooking, hot-water) smooths the load and avoids peak-rate charges.",
+    "estimated_saving_kwh":0.33,
+    "condition":"hour=7 & kW>1.42"
+  },
+  {
+    "timestamp":"2010-11-19T20:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"Evening peak usage of 1.67 kW at 20:00 (vs daily average 1.12 kW). Consider moving flexible tasks such as laundry, dishwashing or EV charging to the off-peak window (13:00\u201316:00) to reduce tariff cost by roughly 20%.",
+    "estimated_saving_kwh":0.333,
+    "condition":"hour=20 & kW>1.34"
+  },
+  {
+    "timestamp":"2010-11-19T21:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"Evening peak usage of 1.78 kW at 21:00 (vs daily average 1.11 kW). Consider moving flexible tasks such as laundry, dishwashing or EV charging to the off-peak window (13:00\u201316:00) to reduce tariff cost by roughly 20%.",
+    "estimated_saving_kwh":0.356,
+    "condition":"hour=21 & kW>1.33"
+  },
+  {
+    "timestamp":"2010-11-20T05:00:00.000",
+    "type":"Night_Idle_Waste",
+    "severity":"Low",
+    "message":"Nighttime idle draw of 0.89 kW at 05:00 while the house should be quiet (baseline \u2248 0.48 kW). Possible causes: standby\/always-on devices, a heating\/cooling unit cycling, or a charger left plugged in. Turning these off can trim the overnight baseline.",
+    "estimated_saving_kwh":0.585,
+    "condition":"hour in 1-5 & kW>0.8"
+  },
+  {
+    "timestamp":"2010-11-20T07:00:00.000",
+    "type":"Morning_Peak",
+    "severity":"Medium",
+    "message":"Morning spike of 2.63 kW at 07:00 (daily average 1.11 kW). Several appliances starting at the same time \u2014 staggering the start-up order (heaters, kettles, cooking, hot-water) smooths the load and avoids peak-rate charges.",
+    "estimated_saving_kwh":0.395,
+    "condition":"hour=7 & kW>1.44"
+  },
+  {
+    "timestamp":"2010-11-20T08:00:00.000",
+    "type":"Morning_Peak",
+    "severity":"Medium",
+    "message":"Morning spike of 1.97 kW at 08:00 (daily average 1.13 kW). Several appliances starting at the same time \u2014 staggering the start-up order (heaters, kettles, cooking, hot-water) smooths the load and avoids peak-rate charges.",
+    "estimated_saving_kwh":0.296,
+    "condition":"hour=8 & kW>1.47"
+  },
+  {
+    "timestamp":"2010-11-20T09:00:00.000",
+    "type":"Morning_Peak",
+    "severity":"Medium",
+    "message":"Morning spike of 1.88 kW at 09:00 (daily average 1.15 kW). Several appliances starting at the same time \u2014 staggering the start-up order (heaters, kettles, cooking, hot-water) smooths the load and avoids peak-rate charges.",
+    "estimated_saving_kwh":0.281,
+    "condition":"hour=9 & kW>1.49"
+  },
+  {
+    "timestamp":"2010-11-20T11:00:00.000",
+    "type":"Midday_High",
+    "severity":"Medium",
+    "message":"Daytime spike of 2.69 kW at 11:00 (daily average 1.20 kW). A large appliance is likely running outside its usual schedule. Review whether it can be spread over a longer period or scheduled for a cheaper window.",
+    "estimated_saving_kwh":0.323,
+    "condition":"hour=11 & kW>1.80"
+  },
+  {
+    "timestamp":"2010-11-20T18:00:00.000",
+    "type":"Peak_to_Average_Ratio",
+    "severity":"High",
+    "message":"Extreme peak of 5.63 kW at 2010-11-20 18:00 \u2014 more than 3\u00d7 your overall mean of 1.09 kW. Very sharp peaks drive demand charges and stress the wiring. Consider splitting the load or delaying part of it.",
+    "estimated_saving_kwh":4.537,
+    "condition":"kW>3*overall_mean"
+  },
+  {
+    "timestamp":"2010-11-20T18:00:00.000",
+    "type":"Consumption_Spike",
+    "severity":"High",
+    "message":"Sharp spike to 5.63 kW at 2010-11-20 18:00 vs recent 24h average of 1.18 kW. This is an outlier relative to your normal rhythm and often means multiple large appliances were started together. Avoid simultaneous start-ups to smooth the load.",
+    "estimated_saving_kwh":4.442,
+    "condition":"kW>2*roll_24_mean+1"
+  },
+  {
+    "timestamp":"2010-11-20T18:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"High",
+    "message":"Evening peak usage of 5.63 kW at 18:00 (vs daily average 1.38 kW). Consider moving flexible tasks such as laundry, dishwashing or EV charging to the off-peak window (13:00\u201316:00) to reduce tariff cost by roughly 20%.",
+    "estimated_saving_kwh":1.125,
+    "condition":"hour=18 & kW>1.65"
+  },
+  {
+    "timestamp":"2010-11-20T18:00:00.000",
+    "type":"Anomaly_Inspection",
+    "severity":"High",
+    "message":"Unexpected consumption of 5.63 kW at 2010-11-20 18:00 vs an expected 1.76 kW (\u0394 +3.87 kW). Detected as an anomaly in notebook 04. Possible causes to check: an appliance left running, an unusual load combination, or an unplanned high-power cycle.",
+    "estimated_saving_kwh":3.868,
+    "condition":"residual=3.87 | z_score=6.76"
+  },
+  {
+    "timestamp":"2010-11-20T19:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"High",
+    "message":"Evening peak usage of 3.26 kW at 19:00 (vs daily average 1.46 kW). Consider moving flexible tasks such as laundry, dishwashing or EV charging to the off-peak window (13:00\u201316:00) to reduce tariff cost by roughly 20%.",
+    "estimated_saving_kwh":0.652,
+    "condition":"hour=19 & kW>1.75"
+  },
+  {
+    "timestamp":"2010-11-20T20:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"Evening peak usage of 2.12 kW at 20:00 (vs daily average 1.48 kW). Consider moving flexible tasks such as laundry, dishwashing or EV charging to the off-peak window (13:00\u201316:00) to reduce tariff cost by roughly 20%.",
+    "estimated_saving_kwh":0.423,
+    "condition":"hour=20 & kW>1.78"
+  },
+  {
+    "timestamp":"2010-11-21T02:00:00.000",
+    "type":"Night_Idle_Waste",
+    "severity":"Low",
+    "message":"Nighttime idle draw of 0.90 kW at 02:00 while the house should be quiet (baseline \u2248 0.48 kW). Possible causes: standby\/always-on devices, a heating\/cooling unit cycling, or a charger left plugged in. Turning these off can trim the overnight baseline.",
+    "estimated_saving_kwh":0.597,
+    "condition":"hour in 1-5 & kW>0.8"
+  },
+  {
+    "timestamp":"2010-11-21T07:00:00.000",
+    "type":"Morning_Peak",
+    "severity":"Medium",
+    "message":"Morning spike of 2.07 kW at 07:00 (daily average 1.49 kW). Several appliances starting at the same time \u2014 staggering the start-up order (heaters, kettles, cooking, hot-water) smooths the load and avoids peak-rate charges.",
+    "estimated_saving_kwh":0.311,
+    "condition":"hour=7 & kW>1.94"
+  },
+  {
+    "timestamp":"2010-11-22T07:00:00.000",
+    "type":"Morning_Peak",
+    "severity":"Medium",
+    "message":"Morning spike of 2.14 kW at 07:00 (daily average 0.62 kW). Several appliances starting at the same time \u2014 staggering the start-up order (heaters, kettles, cooking, hot-water) smooths the load and avoids peak-rate charges.",
+    "estimated_saving_kwh":0.321,
+    "condition":"hour=7 & kW>0.81"
+  },
+  {
+    "timestamp":"2010-11-22T08:00:00.000",
+    "type":"Morning_Peak",
+    "severity":"Medium",
+    "message":"Morning spike of 2.59 kW at 08:00 (daily average 0.67 kW). Several appliances starting at the same time \u2014 staggering the start-up order (heaters, kettles, cooking, hot-water) smooths the load and avoids peak-rate charges.",
+    "estimated_saving_kwh":0.389,
+    "condition":"hour=8 & kW>0.87"
+  },
+  {
+    "timestamp":"2010-11-22T08:00:00.000",
+    "type":"Consumption_Spike",
+    "severity":"High",
+    "message":"Sharp spike to 2.59 kW at 2010-11-22 08:00 vs recent 24h average of 0.62 kW. This is an outlier relative to your normal rhythm and often means multiple large appliances were started together. Avoid simultaneous start-ups to smooth the load.",
+    "estimated_saving_kwh":1.97,
+    "condition":"kW>2*roll_24_mean+1"
+  },
+  {
+    "timestamp":"2010-11-22T10:00:00.000",
+    "type":"Consumption_Spike",
+    "severity":"High",
+    "message":"Sharp spike to 3.11 kW at 2010-11-22 10:00 vs recent 24h average of 0.67 kW. This is an outlier relative to your normal rhythm and often means multiple large appliances were started together. Avoid simultaneous start-ups to smooth the load.",
+    "estimated_saving_kwh":2.431,
+    "condition":"kW>2*roll_24_mean+1"
+  },
+  {
+    "timestamp":"2010-11-22T11:00:00.000",
+    "type":"Midday_High",
+    "severity":"Medium",
+    "message":"Daytime spike of 2.64 kW at 11:00 (daily average 0.89 kW). A large appliance is likely running outside its usual schedule. Review whether it can be spread over a longer period or scheduled for a cheaper window.",
+    "estimated_saving_kwh":0.317,
+    "condition":"hour=11 & kW>1.34"
+  },
+  {
+    "timestamp":"2010-11-22T11:00:00.000",
+    "type":"Consumption_Spike",
+    "severity":"High",
+    "message":"Sharp spike to 2.64 kW at 2010-11-22 11:00 vs recent 24h average of 0.79 kW. This is an outlier relative to your normal rhythm and often means multiple large appliances were started together. Avoid simultaneous start-ups to smooth the load.",
+    "estimated_saving_kwh":1.847,
+    "condition":"kW>2*roll_24_mean+1"
+  },
+  {
+    "timestamp":"2010-11-22T18:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"High",
+    "message":"Evening peak usage of 3.17 kW at 18:00 (vs daily average 1.25 kW). Consider moving flexible tasks such as laundry, dishwashing or EV charging to the off-peak window (13:00\u201316:00) to reduce tariff cost by roughly 20%.",
+    "estimated_saving_kwh":0.634,
+    "condition":"hour=18 & kW>1.49"
+  },
+  {
+    "timestamp":"2010-11-22T18:00:00.000",
+    "type":"Anomaly_Inspection",
+    "severity":"High",
+    "message":"Unexpected consumption of 3.17 kW at 2010-11-22 18:00 vs an expected 0.95 kW (\u0394 +2.22 kW). Detected as an anomaly in notebook 04. Possible causes to check: an appliance left running, an unusual load combination, or an unplanned high-power cycle.",
+    "estimated_saving_kwh":2.215,
+    "condition":"residual=2.22 | z_score=3.90"
+  },
+  {
+    "timestamp":"2010-11-22T19:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"Evening peak usage of 2.59 kW at 19:00 (vs daily average 1.34 kW). Consider moving flexible tasks such as laundry, dishwashing or EV charging to the off-peak window (13:00\u201316:00) to reduce tariff cost by roughly 20%.",
+    "estimated_saving_kwh":0.518,
+    "condition":"hour=19 & kW>1.61"
+  },
+  {
+    "timestamp":"2010-11-22T21:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"Evening peak usage of 2.39 kW at 21:00 (vs daily average 1.43 kW). Consider moving flexible tasks such as laundry, dishwashing or EV charging to the off-peak window (13:00\u201316:00) to reduce tariff cost by roughly 20%.",
+    "estimated_saving_kwh":0.478,
+    "condition":"hour=21 & kW>1.72"
+  },
+  {
+    "timestamp":"2010-11-23T07:00:00.000",
+    "type":"Morning_Peak",
+    "severity":"Medium",
+    "message":"Morning spike of 2.55 kW at 07:00 (daily average 1.42 kW). Several appliances starting at the same time \u2014 staggering the start-up order (heaters, kettles, cooking, hot-water) smooths the load and avoids peak-rate charges.",
+    "estimated_saving_kwh":0.382,
+    "condition":"hour=7 & kW>1.85"
+  },
+  {
+    "timestamp":"2010-11-23T18:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"Evening peak usage of 1.84 kW at 18:00 (vs daily average 1.11 kW). Consider moving flexible tasks such as laundry, dishwashing or EV charging to the off-peak window (13:00\u201316:00) to reduce tariff cost by roughly 20%.",
+    "estimated_saving_kwh":0.368,
+    "condition":"hour=18 & kW>1.33"
+  },
+  {
+    "timestamp":"2010-11-23T19:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"Evening peak usage of 2.22 kW at 19:00 (vs daily average 1.09 kW). Consider moving flexible tasks such as laundry, dishwashing or EV charging to the off-peak window (13:00\u201316:00) to reduce tariff cost by roughly 20%.",
+    "estimated_saving_kwh":0.444,
+    "condition":"hour=19 & kW>1.31"
+  },
+  {
+    "timestamp":"2010-11-23T20:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"Evening peak usage of 2.64 kW at 20:00 (vs daily average 1.14 kW). Consider moving flexible tasks such as laundry, dishwashing or EV charging to the off-peak window (13:00\u201316:00) to reduce tariff cost by roughly 20%.",
+    "estimated_saving_kwh":0.527,
+    "condition":"hour=20 & kW>1.37"
+  },
+  {
+    "timestamp":"2010-11-24T07:00:00.000",
+    "type":"Morning_Peak",
+    "severity":"Medium",
+    "message":"Morning spike of 2.85 kW at 07:00 (daily average 1.14 kW). Several appliances starting at the same time \u2014 staggering the start-up order (heaters, kettles, cooking, hot-water) smooths the load and avoids peak-rate charges.",
+    "estimated_saving_kwh":0.428,
+    "condition":"hour=7 & kW>1.48"
+  },
+  {
+    "timestamp":"2010-11-24T08:00:00.000",
+    "type":"Morning_Peak",
+    "severity":"Medium",
+    "message":"Morning spike of 1.55 kW at 08:00 (daily average 1.14 kW). Several appliances starting at the same time \u2014 staggering the start-up order (heaters, kettles, cooking, hot-water) smooths the load and avoids peak-rate charges.",
+    "estimated_saving_kwh":0.233,
+    "condition":"hour=8 & kW>1.48"
+  },
+  {
+    "timestamp":"2010-11-24T14:00:00.000",
+    "type":"Midday_High",
+    "severity":"Medium",
+    "message":"Daytime spike of 2.02 kW at 14:00 (daily average 1.20 kW). A large appliance is likely running outside its usual schedule. Review whether it can be spread over a longer period or scheduled for a cheaper window.",
+    "estimated_saving_kwh":0.242,
+    "condition":"hour=14 & kW>1.80"
+  },
+  {
+    "timestamp":"2010-11-24T18:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"Evening peak usage of 2.06 kW at 18:00 (vs daily average 1.31 kW). Consider moving flexible tasks such as laundry, dishwashing or EV charging to the off-peak window (13:00\u201316:00) to reduce tariff cost by roughly 20%.",
+    "estimated_saving_kwh":0.412,
+    "condition":"hour=18 & kW>1.57"
+  },
+  {
+    "timestamp":"2010-11-24T20:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"Evening peak usage of 2.31 kW at 20:00 (vs daily average 1.27 kW). Consider moving flexible tasks such as laundry, dishwashing or EV charging to the off-peak window (13:00\u201316:00) to reduce tariff cost by roughly 20%.",
+    "estimated_saving_kwh":0.463,
+    "condition":"hour=20 & kW>1.52"
+  },
+  {
+    "timestamp":"2010-11-24T21:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"Evening peak usage of 1.57 kW at 21:00 (vs daily average 1.27 kW). Consider moving flexible tasks such as laundry, dishwashing or EV charging to the off-peak window (13:00\u201316:00) to reduce tariff cost by roughly 20%.",
+    "estimated_saving_kwh":0.314,
+    "condition":"hour=21 & kW>1.53"
+  },
+  {
+    "timestamp":"2010-11-25T05:00:00.000",
+    "type":"Night_Idle_Waste",
+    "severity":"Low",
+    "message":"Nighttime idle draw of 0.88 kW at 05:00 while the house should be quiet (baseline \u2248 0.48 kW). Possible causes: standby\/always-on devices, a heating\/cooling unit cycling, or a charger left plugged in. Turning these off can trim the overnight baseline.",
+    "estimated_saving_kwh":0.581,
+    "condition":"hour in 1-5 & kW>0.8"
+  },
+  {
+    "timestamp":"2010-11-25T07:00:00.000",
+    "type":"Morning_Peak",
+    "severity":"Medium",
+    "message":"Morning spike of 2.63 kW at 07:00 (daily average 1.24 kW). Several appliances starting at the same time \u2014 staggering the start-up order (heaters, kettles, cooking, hot-water) smooths the load and avoids peak-rate charges.",
+    "estimated_saving_kwh":0.394,
+    "condition":"hour=7 & kW>1.62"
+  },
+  {
+    "timestamp":"2010-11-25T08:00:00.000",
+    "type":"Morning_Peak",
+    "severity":"Medium",
+    "message":"Morning spike of 1.63 kW at 08:00 (daily average 1.25 kW). Several appliances starting at the same time \u2014 staggering the start-up order (heaters, kettles, cooking, hot-water) smooths the load and avoids peak-rate charges.",
+    "estimated_saving_kwh":0.244,
+    "condition":"hour=8 & kW>1.62"
+  },
+  {
+    "timestamp":"2010-11-25T18:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"Evening peak usage of 2.21 kW at 18:00 (vs daily average 0.94 kW). Consider moving flexible tasks such as laundry, dishwashing or EV charging to the off-peak window (13:00\u201316:00) to reduce tariff cost by roughly 20%.",
+    "estimated_saving_kwh":0.442,
+    "condition":"hour=18 & kW>1.12"
+  },
+  {
+    "timestamp":"2010-11-25T19:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"Evening peak usage of 2.33 kW at 19:00 (vs daily average 0.97 kW). Consider moving flexible tasks such as laundry, dishwashing or EV charging to the off-peak window (13:00\u201316:00) to reduce tariff cost by roughly 20%.",
+    "estimated_saving_kwh":0.466,
+    "condition":"hour=19 & kW>1.17"
+  },
+  {
+    "timestamp":"2010-11-25T20:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"Evening peak usage of 1.65 kW at 20:00 (vs daily average 0.94 kW). Consider moving flexible tasks such as laundry, dishwashing or EV charging to the off-peak window (13:00\u201316:00) to reduce tariff cost by roughly 20%.",
+    "estimated_saving_kwh":0.33,
+    "condition":"hour=20 & kW>1.13"
+  },
+  {
+    "timestamp":"2010-11-26T07:00:00.000",
+    "type":"Morning_Peak",
+    "severity":"Medium",
+    "message":"Morning spike of 2.88 kW at 07:00 (daily average 0.98 kW). Several appliances starting at the same time \u2014 staggering the start-up order (heaters, kettles, cooking, hot-water) smooths the load and avoids peak-rate charges.",
+    "estimated_saving_kwh":0.433,
+    "condition":"hour=7 & kW>1.27"
+  },
+  {
+    "timestamp":"2010-11-26T08:00:00.000",
+    "type":"Morning_Peak",
+    "severity":"Medium",
+    "message":"Morning spike of 2.00 kW at 08:00 (daily average 0.99 kW). Several appliances starting at the same time \u2014 staggering the start-up order (heaters, kettles, cooking, hot-water) smooths the load and avoids peak-rate charges.",
+    "estimated_saving_kwh":0.3,
+    "condition":"hour=8 & kW>1.29"
+  },
+  {
+    "timestamp":"2010-11-26T09:00:00.000",
+    "type":"Morning_Peak",
+    "severity":"Medium",
+    "message":"Morning spike of 1.85 kW at 09:00 (daily average 1.02 kW). Several appliances starting at the same time \u2014 staggering the start-up order (heaters, kettles, cooking, hot-water) smooths the load and avoids peak-rate charges.",
+    "estimated_saving_kwh":0.277,
+    "condition":"hour=9 & kW>1.32"
+  },
+  {
+    "timestamp":"2010-11-26T18:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"Evening peak usage of 1.57 kW at 18:00 (vs daily average 1.23 kW). Consider moving flexible tasks such as laundry, dishwashing or EV charging to the off-peak window (13:00\u201316:00) to reduce tariff cost by roughly 20%.",
+    "estimated_saving_kwh":0.315,
+    "condition":"hour=18 & kW>1.47"
+  },
+  {
+    "timestamp":"2010-11-26T19:00:00.000",
+    "type":"Peak_Shift",
+    "severity":"Medium",
+    "message":"Evening peak usage of 1.66 kW at 19:00 (vs daily average 1.20 kW). Consider moving flexible tasks such as laundry, dishwashing or EV charging to the off-peak window (13:00\u201316:00) to reduce tariff cost by roughly 20%.",
+    "estimated_saving_kwh":0.332,
+    "condition":"hour=19 & kW>1.44"
+  },
+  {
+    "timestamp":"2010-11-26T21:00:00.000",
+    "type":"Weekend_High",
+    "severity":"Low",
+    "message":"Weekend consumption averages 1.22 kW vs 1.04 kW on weekdays (18% higher). Weekend-only routines drive extra load. Consider spreading heavy tasks (cooking, cleaning, laundry) across the day and outside peak hours.",
+    "estimated_saving_kwh":0.037,
+    "condition":"weekend>1.19 kW"
+  },
+  {
+    "timestamp":"2010-11-26T21:00:00.000",
+    "type":"Submetering_Dominance",
+    "severity":"Medium",
+    "message":"One circuit dominates total consumption at 72.9% \u2014 likely a heating\/cooling-related circuit (water heating or space conditioning). Consider staggering its use with other high-power tasks and check whether a more efficient appliance or off-peak scheduling is feasible.",
+    "estimated_saving_kwh":57.979,
+    "condition":"Sub_metering_3 share >40%"
+  },
+  {
+    "timestamp":"2010-11-26T21:00:00.000",
+    "type":"High_Base_Load",
+    "severity":"Medium",
+    "message":"Your average 24h consumption stays above 2.5 kW for 209 hours. This usually indicates a high always-on baseline (heating\/cooling, water heating, standby clusters). Reducing always-on equipment and grouping flexible loads can lower the baseline and the bill.",
+    "estimated_saving_kwh":0.5,
+    "condition":"roll_24_mean>2.5 for >100 hours"
+  }
+]
