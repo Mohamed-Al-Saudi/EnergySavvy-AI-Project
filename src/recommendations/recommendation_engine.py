@@ -1,115 +1,256 @@
-"""Rule-based recommendation layer - VERY LOT.
-Generates 4000+ recommendations like notebook 05 did (3889 rows), not 3.
-Traceable to observed conditions.
+"""Rule-based recommendation layer — 5 explainable rules only.
+
+Mirrors notebooks/05_recommendation_system.ipynb:
+
+    Rule 1 - Peak Shift              : hour in [18,19,20,21] and kW > 1.2*daily_mean and kW > 1.5
+    Rule 2 - Night Idle Waste        : hour in [1..5] and kW > 0.8
+    Rule 3 - Anomaly Inspection      : top 50 rows from df_anom
+    Rule 4 - Laundry Load Shift      : laundry share > 40 %
+    Rule 5 - Base Load Reduction     : kW > 2.5 for > 100 hours
+
+No LLM. Every recommendation is traceable to a validated threshold,
+but every message is written for a human user and refers to real
+appliances (AC, water heater, washing machine, dryer, dishwasher, ...).
 """
+
+from __future__ import annotations
+
 import pandas as pd
-import numpy as np
-from pathlib import Path
 
-def generate_recommendations(high_night_usage=False, high_sm3=False, repeated_peak=False, current_kw=0, hour=0, sub_metering_pct=None):
-    """Keep for compatibility - old simple API"""
-    recommendations = []
-    if high_night_usage or (hour in [1,2,3,4,5] and current_kw > 0.8):
-        recommendations.append(f"Unusual nighttime {current_kw:.2f}kW at {hour}h vs normal 0.479kW. Check standby devices.")
-    if high_sm3:
-        recommendations.append("Sub-metering 3 (AC/water-heater) 72.8% dominance - review AC schedule, saving ~20%")
-    if repeated_peak or hour in [18,19,20,21]:
-        recommendations.append(f"Repeated peak {current_kw:.2f}kW at {hour}h (peaks 20h=1.89kW,21h=1.86kW,19h=1.72kW). Shift washing.")
-    return recommendations
+# ---------- Thresholds (single source of truth) ----------
+PEAK_HOURS = [18, 19, 20, 21]
+NIGHT_HOURS = [1, 2, 3, 4, 5]
 
-def generate_many_recommendations(df_hourly: pd.DataFrame, df_anomaly: pd.DataFrame = None, cairo_weather_df: pd.DataFrame = None) -> pd.DataFrame:
-    """
-    VERY LOT - generates 4000+ rows like notebook 05.
-    """
-    recommendations = []
-    df = df_hourly.copy()
+PEAK_KW_MULT = 1.2
+PEAK_MIN_KW = 1.5
+PEAK_HIGH_KW = 3.0
+
+NIGHT_MIN_KW = 0.8
+NIGHT_BASELINE_KW = 0.3
+
+ANOM_TOP_N = 50
+
+SM2_SHARE_THRESHOLD = 40.0
+SM2_SAVING_FRACTION = 0.15
+
+BASE_LOAD_KW = 2.5
+BASE_LOAD_MIN_HOURS = 100
+BASE_LOAD_SAVING_KWH = 0.5
+
+OUTPUT_COLUMNS = [
+    "timestamp",
+    "type",
+    "severity",
+    "message",
+    "estimated_saving_kwh",
+    "condition",
+]
+
+
+# ---------- Helpers ----------
+def _prepare(df_h: pd.DataFrame) -> pd.DataFrame:
+    """Ensure DatetimeIndex, `hour`, and `daily_mean` exist."""
+    df = df_h.copy()
     if not isinstance(df.index, pd.DatetimeIndex):
         df.index = pd.to_datetime(df.index)
-    df['hour'] = df.index.hour
-    df['daily_mean'] = df['Global_active_power'].rolling(24, min_periods=1).mean()
-    df['roll_24_mean'] = df['Global_active_power'].shift(1).rolling(24).mean()
+    if "hour" not in df.columns:
+        df["hour"] = df.index.hour
+    if "daily_mean" not in df.columns:
+        df["daily_mean"] = df["Global_active_power"].rolling(24, min_periods=1).mean()
+    return df
 
-    hourly_avg = df.groupby('hour')['Global_active_power'].mean()
-    peak_hours = hourly_avg.sort_values(ascending=False).head(3).index.tolist()
-    night_avg = df[df['hour'].isin([1,2,3,4,5])]['Global_active_power'].mean()
 
-    # 1. Peak Shift 18-21h - ~1500 recs
-    for idx, row in df[df['hour'].isin([18,19,20,21])].iterrows():
-        if row['Global_active_power'] > row['daily_mean']*1.2 and row['Global_active_power'] > 1.5:
-            recommendations.append({
-                'timestamp': idx, 'type': 'Peak_Shift', 'severity': 'High' if row['Global_active_power']>3 else 'Medium',
-                'message': f"High {row['Global_active_power']:.2f}kW at {int(row['hour'])}h peak (top {peak_hours}). Shift washer/dishwasher to 13-16h off-peak. Daily mean {row['daily_mean']:.2f}kW.",
-                'estimated_saving_kwh': round(row['Global_active_power']*0.2,3), 'condition': f"hour={int(row['hour'])} & kW>{row['daily_mean']*1.2:.2f}"
+def _fmt_hour(h: int) -> str:
+    """Return 'HH:00' style label."""
+    return f"{int(h):02d}:00"
+
+
+# ---------- Rule 1: Peak Shift ----------
+def _rule_peak_shift(df: pd.DataFrame) -> list[dict]:
+    recs = []
+    peak_df = df[df["hour"].isin(PEAK_HOURS)]
+    for idx, row in peak_df.iterrows():
+        threshold = row["daily_mean"] * PEAK_KW_MULT
+        kw = row["Global_active_power"]
+        if kw > threshold and kw > PEAK_MIN_KW:
+            recs.append({
+                "timestamp": idx,
+                "type": "Peak_Shift",
+                "severity": "Medium" if kw < PEAK_HIGH_KW else "High",
+                "message": (
+                    f"Evening peak usage of {kw:.2f} kW detected at "
+                    f"{_fmt_hour(row['hour'])}. This is above your typical "
+                    f"daily average ({row['daily_mean']:.2f} kW). "
+                    f"Shift high-power appliances such as the washing machine, "
+                    f"dryer, dishwasher or oven to the off-peak window "
+                    f"(13:00–16:00) to cut ~20 % of the tariff cost."
+                ),
+                "estimated_saving_kwh": round(kw * 0.2, 3),
+                "condition": (
+                    f"hour={int(row['hour'])} & kW>{threshold:.2f}"
+                ),
             })
+    return recs
 
-    # 2. Night Idle 01-05h >0.8kW - ~800 recs
-    night_df = df[df['hour'].isin([1,2,3,4,5])]
-    for idx, row in night_df[night_df['Global_active_power'] > 0.8].iterrows():
-        recommendations.append({
-            'timestamp': idx, 'type': 'Night_Idle_Waste', 'severity': 'Low',
-            'message': f"Idle {row['Global_active_power']:.2f}kW at {int(row['hour'])}h vs normal {night_avg:.3f}kW. Check router/fridge/TV/chargers standby.",
-            'estimated_saving_kwh': round(max(0,row['Global_active_power']-0.3),3), 'condition': "hour in 1-5 & kW>0.8"
-        })
 
-    # 3. Sub3 72.8% dominance - ~600 recs
-    if 'Sub_metering_3' in df.columns:
-        total_sub = df[['Sub_metering_1','Sub_metering_2','Sub_metering_3']].sum(axis=1)+1e-6
-        sub3_pct = df['Sub_metering_3']/total_sub
-        for idx in df[sub3_pct>0.6].index[:600]:
-            row = df.loc[idx]
-            recommendations.append({
-                'timestamp': idx, 'type': 'High_SM3_AC_Heater', 'severity': 'Medium',
-                'message': f"Sub3 AC/heater {sub3_pct.loc[idx]*100:.0f}% at {row['hour']}h (avg 72.8%). Review AC 26°C not 20°C, saving ~18%.",
-                'estimated_saving_kwh': round(row['Global_active_power']*0.15,3), 'condition': "SM3>60%"
+# ---------- Rule 2: Night Idle Waste ----------
+def _rule_night_idle(df: pd.DataFrame) -> list[dict]:
+    recs = []
+    night = df[df["hour"].isin(NIGHT_HOURS)]
+    for idx, row in night.iterrows():
+        kw = row["Global_active_power"]
+        if kw > NIGHT_MIN_KW:
+            recs.append({
+                "timestamp": idx,
+                "type": "Night_Idle_Waste",
+                "severity": "Low",
+                "message": (
+                    f"Unusual nighttime draw of {kw:.2f} kW at "
+                    f"{_fmt_hour(row['hour'])} while the household should "
+                    f"be idle. Common culprits: Wi-Fi router, refrigerator "
+                    f"cycling, TV on standby, phone/laptop chargers, or a "
+                    f"water heater keeping temperature overnight. "
+                    f"Turn off or unplug standby devices before sleeping."
+                ),
+                "estimated_saving_kwh": round(
+                    max(0.0, kw - NIGHT_BASELINE_KW), 3
+                ),
+                "condition": "hour in 1-5 & kW>0.8",
             })
+    return recs
 
-    # 4. Anomaly 1286 rows - 400 recs
-    if df_anomaly is not None and not df_anomaly.empty:
-        for idx in df_anomaly.index[:400]:
-            if idx in df.index:
-                row = df.loc[idx]
-                recommendations.append({
-                    'timestamp': idx, 'type': 'Anomaly_Followup', 'severity': 'High',
-                    'message': f"Anomaly at {idx} - {row['Global_active_power']:.2f}kW deviates (z>3). Immediate inspection - overlapping high-power devices.",
-                    'estimated_saving_kwh': round(row['Global_active_power']*0.3,3), 'condition': "is_anomaly=True from IsolationForest+Residual"
-                })
 
-    # 5. High Base Load roll_24_mean>2.5 - ~300 recs
-    for idx, row in df[df['roll_24_mean']>2.5].iterrows():
-        recommendations.append({
-            'timestamp': idx, 'type': 'High_Base_Load', 'severity': 'Medium',
-            'message': f"24h mean {row['roll_24_mean']:.2f}kW >2.5kW threshold. Always-on high - smart power strips.",
-            'estimated_saving_kwh': round((row['roll_24_mean']-2.0)*0.5,3), 'condition': "roll_24_mean>2.5"
+# ---------- Rule 3: Anomaly Inspection ----------
+def _rule_anomaly(df_anom: pd.DataFrame | None) -> list[dict]:
+    if df_anom is None or df_anom.empty:
+        return []
+
+    recs = []
+    for idx, row in df_anom.head(ANOM_TOP_N).iterrows():
+        kw = row["Global_active_power"]
+        y_pred = row.get("y_pred", float("nan"))
+        residual = row.get("residual", float("nan"))
+        z = row.get("z_score", 0.0)
+        ae = row.get("abs_error", 0.0)
+
+        direction = "higher" if residual > 0 else "lower"
+
+        recs.append({
+            "timestamp": idx,
+            "type": "Anomaly_Inspection",
+            "severity": "High",
+            "message": (
+                f"Unexpected consumption spike: {kw:.2f} kW observed while "
+                f"the model expected around {y_pred:.2f} kW "
+                f"({abs(residual):.2f} kW {direction} than expected). "
+                f"This often means an appliance was left running — check "
+                f"AC, water heater, oven, iron or washing machine for an "
+                f"unplanned cycle."
+            ),
+            "estimated_saving_kwh": round(abs(residual), 3),
+            "condition": f"z_score={z:.2f} | abs_error={ae:.2f}",
         })
+    return recs
 
-    # 6. Weekend High 1.223 vs 1.037 - 300 recs
-    df['is_weekend'] = (df.index.dayofweek>=5).astype(int)
-    weekend_high = df[(df['is_weekend']==1) & (df['Global_active_power']>1.5)]
-    for idx, row in weekend_high.iloc[:300].iterrows():
-        recommendations.append({
-            'timestamp': idx, 'type': 'Weekend_High', 'severity': 'Low',
-            'message': f"Weekend {row['Global_active_power']:.2f}kW > weekday avg 1.037kW. Review TV/AC/oven.",
-            'estimated_saving_kwh': round((row['Global_active_power']-1.037)*0.2,3), 'condition': "weekend & kW>1.5"
-        })
 
-    # 7. Weather correlation - 200 recs
-    for idx, row in df[df['Global_active_power']>2.0].iloc[:200].iterrows():
-        recommendations.append({
-            'timestamp': idx, 'type': 'Weather_Heat_Correlation', 'severity': 'Medium',
-            'message': f"High {row['Global_active_power']:.2f}kW correlates with high outdoor temp (Cairo mean 23.03°C max 37.4°C). Temp>32°C AC +15%. Set 25-26°C curtains.",
-            'estimated_saving_kwh': round(row['Global_active_power']*0.18,3), 'condition': "temp>32 & kW>2.0"
-        })
+# ---------- Rule 4: Laundry / Dishwasher Shift ----------
+def _rule_laundry_shift(df: pd.DataFrame, sub_share_pct: dict | None) -> list[dict]:
+    """Sub_metering_2 in this dataset = laundry appliances
+    (washing machine, dryer, iron). Sub_metering_1 = kitchen
+    (dishwasher, oven, microwave). We report in those terms."""
+    if sub_share_pct is None or "Sub_metering_2" not in df.columns:
+        return []
 
-    # 8. Unmeasured high - 200 recs
-    if 'unmeasured_Wh' in df.columns:
-        for idx, row in df[df['unmeasured_Wh']>2000].iloc[:200].iterrows():
-            recommendations.append({
-                'timestamp': idx, 'type': 'Unmeasured_High', 'severity': 'Low',
-                'message': f"Unmeasured {row['unmeasured_Wh']:.0f}Wh (lights/TV/PC/chargers) high. LED + turn off standby.",
-                'estimated_saving_kwh': round(row['unmeasured_Wh']/1000*0.3,3), 'condition': "unmeasured>2000Wh"
-            })
+    share = sub_share_pct.get("Sub_metering_2", 0)
+    if share <= SM2_SHARE_THRESHOLD:
+        return []
 
-    rec_df = pd.DataFrame(recommendations)
-    if not rec_df.empty:
-        rec_df = rec_df.sort_values('timestamp').reset_index(drop=True)
+    return [{
+        "timestamp": df.index[-1],
+        "type": "Submetering_Shift",
+        "severity": "Medium",
+        "message": (
+            f"Laundry appliances (washing machine, dryer, iron) account "
+            f"for {share:.1f} % of your household consumption — above the "
+            f"40 % guideline. Try to run full loads instead of partial "
+            f"ones and schedule laundry cycles during the off-peak "
+            f"window (around 14:00) to lower both energy and tariff cost."
+        ),
+        "estimated_saving_kwh": round(
+            df["Sub_metering_2"].mean() * SM2_SAVING_FRACTION, 3
+        ),
+        "condition": "laundry share >40%",
+    }]
+
+
+# ---------- Rule 5: High Base Load ----------
+def _rule_high_base(df: pd.DataFrame) -> list[dict]:
+    high_base = df[df["Global_active_power"] > BASE_LOAD_KW]
+    if len(high_base) <= BASE_LOAD_MIN_HOURS:
+        return []
+
+    return [{
+        "timestamp": df.index[-1],
+        "type": "Base_Load_Reduction",
+        "severity": "Medium",
+        "message": (
+            f"Your home has been drawing more than {BASE_LOAD_KW} kW for "
+            f"{len(high_base)} hours. This sustained base load usually "
+            f"comes from always-on equipment such as the water heater, "
+            f"refrigerator, AC running continuously, or several devices "
+            f"left on in parallel. Consider energy-efficient replacements "
+            f"and avoid running multiple heavy appliances at once."
+        ),
+        "estimated_saving_kwh": BASE_LOAD_SAVING_KWH,
+        "condition": f"kW>{BASE_LOAD_KW} for >{BASE_LOAD_MIN_HOURS} hours",
+    }]
+
+
+# ---------- Public API ----------
+def generate_recommendations(
+    df_h: pd.DataFrame,
+    df_anom: pd.DataFrame | None = None,
+    sub_share_pct: dict | None = None,
+) -> pd.DataFrame:
+    """Run the 5 explainable rules and return a tidy DataFrame.
+
+    Parameters
+    ----------
+    df_h : hourly DataFrame with DatetimeIndex and 'Global_active_power'
+           (optionally 'Sub_metering_2', 'hour', 'daily_mean').
+    df_anom : anomaly DataFrame from notebook 04 with columns
+              ['Global_active_power', 'y_pred', 'residual',
+               'z_score', 'abs_error'] (sorted by severity, top N used).
+    sub_share_pct : dict mapping sub-metering column -> % of total,
+                    e.g. {'Sub_metering_1': 12.4, 'Sub_metering_2': 47.0,
+                          'Sub_metering_3': 40.6}.
+
+    Returns
+    -------
+    DataFrame with columns:
+        timestamp, type, severity, message,
+        estimated_saving_kwh, condition
+    """
+    df = _prepare(df_h)
+
+    recs: list[dict] = []
+    recs += _rule_peak_shift(df)
+    recs += _rule_night_idle(df)
+    recs += _rule_anomaly(df_anom)
+    recs += _rule_laundry_shift(df, sub_share_pct)
+    recs += _rule_high_base(df)
+
+    if not recs:
+        return pd.DataFrame(columns=OUTPUT_COLUMNS)
+
+    rec_df = (
+        pd.DataFrame(recs)
+        .drop_duplicates(subset=["timestamp", "type"])
+        .sort_values("timestamp")
+        .reset_index(drop=True)
+    )
     return rec_df
+
+
+# Backwards-compat alias for old imports
+generate_many_recommendations = generate_recommendations
