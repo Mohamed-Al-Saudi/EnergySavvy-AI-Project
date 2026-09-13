@@ -99,16 +99,25 @@ def detect_with_residual_and_iso(df, target_col="Global_active_power", pred_col=
         (df["z_score"].abs() > 3.0) | (df["abs_error"] > 2 * RMSE_proxy)
     )
 
-    # IsolationForest part
+    # IsolationForest part — guarded against NaN and too-few rows
     feature_cols = [c for c in df.columns
                     if c.startswith(("hour", "day", "month", "lag_", "roll_"))]
-    if feature_cols:
-        iso = IsolationForest(contamination=0.02, random_state=42)
-        df["is_anomaly_iso"] = iso.fit_predict(df[feature_cols]) == -1
-        df["is_anomaly"] = df["is_anomaly_resid"] | df["is_anomaly_iso"]
-    else:
-        df["is_anomaly_iso"] = False
-        df["is_anomaly"] = df["is_anomaly_resid"]
+
+    df["is_anomaly_iso"] = False
+    if feature_cols and len(df) >= 2:
+        X_iso = df[feature_cols].select_dtypes(include=["number"]).copy()
+        # Fill NaNs (e.g. lag_168 warm-up rows) with each column's mean.
+        X_iso = X_iso.fillna(X_iso.mean(numeric_only=True))
+        # Only fit if we still have at least 2 rows and ≥1 feature.
+        if len(X_iso) >= 2 and X_iso.shape[1] >= 1:
+            try:
+                iso = IsolationForest(contamination=0.02, random_state=42)
+                df["is_anomaly_iso"] = iso.fit_predict(X_iso) == -1
+            except Exception:
+                df["is_anomaly_iso"] = False
+
+    df["is_anomaly"] = df["is_anomaly_resid"] | df["is_anomaly_iso"]
+   
 
     # Message column for every anomalous hour
     df["message"] = ""
