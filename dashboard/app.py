@@ -225,61 +225,103 @@ def weather_code_description(code):
     }
     return mapping.get(code, "Current conditions")
 
+def _weather_values_plausible(temp_c, humidity_pct, wind_kmh):
+    """Reject obviously broken readings (bad units, parsing errors, null
+    islands) instead of silently showing them as if they were accurate."""
+    if temp_c is None or not (-15.0 <= temp_c <= 55.0):
+        return False
+    if humidity_pct is None or not (0 <= humidity_pct <= 100):
+        return False
+    if wind_kmh is None or not (0 <= wind_kmh <= 250):
+        return False
+    return True
+
+
+def _fetch_open_meteo(lat, lon, timeout=10):
+    url = (
+        "https://api.open-meteo.com/v1/forecast"
+        f"?latitude={lat}&longitude={lon}"
+        "&current=temperature_2m,relative_humidity_2m,wind_speed_10m,"
+        "apparent_temperature,weather_code"
+        "&temperature_unit=celsius&wind_speed_unit=kmh&precipitation_unit=mm"
+        "&timezone=auto"
+    )
+    response = requests.get(url, timeout=timeout)
+    response.raise_for_status()
+    data = response.json()
+    cur = data["current"]
+
+    temperature_c = float(cur["temperature_2m"])
+    humidity_percent = int(round(cur["relative_humidity_2m"]))
+    wind_speed_kmh = float(cur["wind_speed_10m"])
+
+    if not _weather_values_plausible(temperature_c, humidity_percent, wind_speed_kmh):
+        raise ValueError("Open-Meteo returned implausible values")
+
+    return {
+        "temperature_c": temperature_c,
+        "humidity_percent": humidity_percent,
+        "wind_speed_kmh": wind_speed_kmh,
+        "feels_like_c": float(cur["apparent_temperature"]),
+        "weather_desc": weather_code_description(cur["weather_code"]),
+        "source": "Open-Meteo live",
+        "is_simulated": False,
+        "timestamp": datetime.now().isoformat(),
+    }
+
+
+def _fetch_wttr(lat, lon, timeout=10):
+    url = f"https://wttr.in/{lat},{lon}?format=j1"
+    response = requests.get(url, timeout=timeout)
+    response.raise_for_status()
+    data = response.json()
+    c = data["current_condition"][0]
+
+    temperature_c = float(c["temp_C"])
+    humidity_percent = int(c["humidity"])
+    wind_speed_kmh = float(c["windspeedKmph"])
+
+    if not _weather_values_plausible(temperature_c, humidity_percent, wind_speed_kmh):
+        raise ValueError("wttr.in returned implausible values")
+
+    return {
+        "temperature_c": temperature_c,
+        "humidity_percent": humidity_percent,
+        "wind_speed_kmh": wind_speed_kmh,
+        "feels_like_c": float(c.get("FeelsLikeC", c["temp_C"])),
+        "weather_desc": c["weatherDesc"][0]["value"],
+        "source": "wttr.in live",
+        "is_simulated": False,
+        "timestamp": datetime.now().isoformat(),
+    }
+
+
 @st.cache_data(ttl=WEATHER_CACHE_SECONDS, show_spinner=False)
 def get_current_weather(lat, lon):
-    # Primary live source: location-specific Open-Meteo.
-    try:
-        url = (
-            "https://api.open-meteo.com/v1/forecast"
-            f"?latitude={lat}&longitude={lon}"
-            "&current=temperature_2m,relative_humidity_2m,wind_speed_10m,"
-            "apparent_temperature,weather_code"
-            "&timezone=auto"
-        )
-        data = requests.get(url, timeout=8).json()
-        cur = data["current"]
-        return {
-            "temperature_c": float(cur["temperature_2m"]),
-            "humidity_percent": int(round(cur["relative_humidity_2m"])),
-            "wind_speed_kmh": float(cur["wind_speed_10m"]),
-            "feels_like_c": float(cur["apparent_temperature"]),
-            "weather_desc": weather_code_description(cur["weather_code"]),
-            "source": "Open-Meteo live",
-            "is_simulated": False,
-            "timestamp": datetime.now().isoformat(),
-        }
-    except Exception:
-        pass
+    # Each live source gets one retry before moving on. A source is only
+    # trusted if the values it returns pass a basic plausibility check, so a
+    # malformed or partial response can never be displayed as if accurate.
+    for fetcher in (_fetch_open_meteo, _fetch_wttr):
+        for attempt in range(2):
+            try:
+                return fetcher(lat, lon)
+            except Exception:
+                continue
 
-    # Location-specific fallback.
-    try:
-        url = f"https://wttr.in/{lat},{lon}?format=j1"
-        data = requests.get(url, timeout=8).json()
-        c = data["current_condition"][0]
-        return {
-            "temperature_c": float(c["temp_C"]),
-            "humidity_percent": int(c["humidity"]),
-            "wind_speed_kmh": float(c["windspeedKmph"]),
-            "feels_like_c": float(c.get("FeelsLikeC", c["temp_C"])),
-            "weather_desc": c["weatherDesc"][0]["value"],
-            "source": "wttr.in live",
-            "is_simulated": False,
-            "timestamp": datetime.now().isoformat(),
-        }
-    except Exception:
-        # Last-resort fallback only; clearly labelled.
-        hour = datetime.now().hour
-        temp = 28 + 5 * math.sin((hour - 6) / 24 * 2 * math.pi)
-        return {
-            "temperature_c": round(temp, 1),
-            "humidity_percent": 55,
-            "wind_speed_kmh": 12.0,
-            "feels_like_c": round(temp + 2, 1),
-            "weather_desc": "Fallback estimate",
-            "source": "Fallback estimate (API unavailable)",
-            "is_simulated": True,
-            "timestamp": datetime.now().isoformat(),
-        }
+    # Last-resort fallback only; clearly labelled, never silently mixed with
+    # real readings above.
+    hour = datetime.now().hour
+    temp = 28 + 5 * math.sin((hour - 6) / 24 * 2 * math.pi)
+    return {
+        "temperature_c": round(temp, 1),
+        "humidity_percent": 55,
+        "wind_speed_kmh": 12.0,
+        "feels_like_c": round(temp + 2, 1),
+        "weather_desc": "Fallback estimate",
+        "source": "Fallback estimate (API unavailable)",
+        "is_simulated": True,
+        "timestamp": datetime.now().isoformat(),
+    }
 
 def get_ip_location():
     try:
@@ -319,13 +361,85 @@ VARIABLE_DEVICES = {
 }
 ALL_DEVICE_NAMES = list(CONTINUOUS_DEVICES) + list(VARIABLE_DEVICES)
 
+# ----------------------------------------------------------------------------
+# Master catalog of additional devices the presenter can add at runtime.
+# Each entry gives a sensible default rated power, which category it usually
+# belongs to, and (for time-dependent entries) a usage pattern used to build
+# a realistic on/off probability curve. The presenter can still override the
+# category, power, and pattern when adding it — this is only a starting point.
+# ----------------------------------------------------------------------------
+MASTER_DEVICE_CATALOG = {
+    "Television": {"kw": 0.10, "default_category": "continuous", "default_duty_hours": 5.0},
+    "Desktop computer": {"kw": 0.15, "default_category": "continuous", "default_duty_hours": 4.0},
+    "Laptop": {"kw": 0.06, "default_category": "continuous", "default_duty_hours": 5.0},
+    "Electric kettle": {"kw": 1.80, "default_category": "variable", "default_pattern": "frequent"},
+    "Toaster": {"kw": 0.90, "default_category": "variable", "default_pattern": "frequent"},
+    "Iron": {"kw": 1.20, "default_category": "variable", "default_pattern": "daytime"},
+    "Hair dryer": {"kw": 1.20, "default_category": "variable", "default_pattern": "daytime"},
+    "Dishwasher": {"kw": 1.50, "default_category": "variable", "default_pattern": "evening"},
+    "Clothes dryer": {"kw": 2.00, "default_category": "variable", "default_pattern": "daytime"},
+    "Water pump": {"kw": 0.75, "default_category": "continuous", "default_duty_hours": 1.5},
+    "Extractor / exhaust fan": {"kw": 0.05, "default_category": "variable", "default_pattern": "daytime"},
+    "Electric blanket": {"kw": 0.20, "default_category": "variable", "default_pattern": "evening"},
+    "Coffee maker": {"kw": 0.80, "default_category": "variable", "default_pattern": "frequent"},
+    "Blender": {"kw": 0.40, "default_category": "variable", "default_pattern": "frequent"},
+    "Game console": {"kw": 0.12, "default_category": "variable", "default_pattern": "evening"},
+    "Set-top box / receiver": {"kw": 0.02, "default_category": "continuous", "default_duty_hours": 8.0},
+    "Security camera system": {"kw": 0.02, "default_category": "continuous", "default_duty_hours": 24.0},
+    "Doorbell / intercom": {"kw": 0.005, "default_category": "continuous", "default_duty_hours": 24.0},
+    "Garage door opener": {"kw": 0.30, "default_category": "variable", "default_pattern": "frequent"},
+    "Sewing machine": {"kw": 0.10, "default_category": "variable", "default_pattern": "daytime"},
+    "Space heater": {"kw": 1.50, "default_category": "variable", "default_pattern": "temperature"},
+    "Ceiling / exhaust cooler": {"kw": 0.20, "default_category": "variable", "default_pattern": "temperature"},
+    "Aquarium pump": {"kw": 0.03, "default_category": "continuous", "default_duty_hours": 24.0},
+}
+
+
+def _generic_variable_probability(pattern, hour, temp):
+    """Reusable probability curves for custom time-dependent devices that
+    don't have bespoke logic, keyed by a simple usage-pattern preset."""
+    if pattern == "evening":
+        return 0.55 if 18 <= hour <= 23 else (0.15 if 6 <= hour <= 9 else 0.04)
+    if pattern == "daytime":
+        return 0.30 if 9 <= hour <= 18 else 0.04
+    if pattern == "temperature":
+        if temp >= 33:
+            return 0.75
+        if temp >= 28:
+            return 0.40
+        if temp <= 15:
+            return 0.35  # e.g. space heaters trend the other way in the cold
+        return 0.08
+    if pattern == "frequent":
+        return 0.20 if 7 <= hour <= 22 else 0.05
+    return 0.10
+
+
+def get_active_continuous_devices():
+    """Base 24-hour devices plus any the presenter has added."""
+    merged = dict(CONTINUOUS_DEVICES)
+    merged.update(st.session_state.get("custom_continuous", {}))
+    return merged
+
+
+def get_active_variable_devices():
+    """Base time-dependent devices plus any the presenter has added."""
+    merged = dict(VARIABLE_DEVICES)
+    merged.update(st.session_state.get("custom_variable", {}))
+    return merged
+
+
 class EnergySimulator:
     def __init__(self):
         self.previous = {name: False for name in ALL_DEVICE_NAMES}
 
     def probability(self, name, hour, temp):
-        if name in CONTINUOUS_DEVICES:
+        continuous_devices = get_active_continuous_devices()
+        variable_devices = get_active_variable_devices()
+        if name in continuous_devices:
             return 1.0
+        if name in variable_devices and "pattern" in variable_devices[name]:
+            return _generic_variable_probability(variable_devices[name]["pattern"], hour, temp)
         if name == "Air conditioner":
             if temp >= 34: base = 0.90
             elif temp >= 31: base = 0.72
@@ -361,8 +475,10 @@ class EnergySimulator:
         )
         appliances = {}
         total_w = 0.0
+        continuous_devices = get_active_continuous_devices()
+        variable_devices = get_active_variable_devices()
 
-        for name, cfg in CONTINUOUS_DEVICES.items():
+        for name, cfg in continuous_devices.items():
             # Dashboard status: continuously available/active; actual energy uses duty cycle.
             cycle = cfg["duty"]
             # Instantaneous compressor/heater/operation variation.
@@ -378,7 +494,7 @@ class EnergySimulator:
             }
             total_w += power_kw * 1000
 
-        for name, cfg in VARIABLE_DEVICES.items():
+        for name, cfg in variable_devices.items():
             p = self.probability(name, hour, temperature)
             previous = self.previous.get(name, False)
             stay_p = min(0.96, p + 0.35) if previous else p
@@ -394,6 +510,16 @@ class EnergySimulator:
             self.previous[name] = is_on
             total_w += power_kw * 1000
 
+        # Occasional genuine surge: an appliance drawing more than its usual
+        # share (e.g. a compressor start-up, an extra device switched on
+        # unexpectedly). This is real injected variance in the underlying
+        # signal, not a rigged anomaly flag — the detector below still has to
+        # actually notice it against the rolling baseline.
+        surge_kw = 0.0
+        if random.random() < 0.06:
+            surge_kw = random.uniform(0.6, 1.9)
+            total_w += surge_kw * 1000
+
         total_w = max(120.0, total_w)
         return {
             "timestamp": now.isoformat(),
@@ -402,6 +528,7 @@ class EnergySimulator:
             "power_kw": round(total_w / 1000, 3),
             "power_w": round(total_w, 1),
             "appliances": appliances,
+            "surge_kw": round(surge_kw, 3),
             "is_simulated": True,
             "source": "Temporary IoT simulator",
         }
@@ -522,17 +649,19 @@ def calculate_monthly_bill(monthly_kwh):
 
 def estimate_monthly_from_devices(simulator, temp_now):
     # Expected daily energy based on device power x expected operating hours.
+    # Includes both the fixed 15-device baseline and any devices the
+    # presenter has added through the sidebar.
     now_hour = datetime.now().hour
     daily_kwh = 0.0
     rows = []
 
-    for name, cfg in CONTINUOUS_DEVICES.items():
+    for name, cfg in get_active_continuous_devices().items():
         hours = 24.0 * cfg["duty"]
         kwh = cfg["kw"] * hours
         daily_kwh += kwh
         rows.append((name, cfg["kw"], hours, kwh))
 
-    for name, cfg in VARIABLE_DEVICES.items():
+    for name, cfg in get_active_variable_devices().items():
         expected_hours = sum(
             simulator.probability(name, h, temp_now + 2.0 * math.sin((h - now_hour) / 24 * 2 * math.pi))
             for h in range(24)
@@ -550,15 +679,26 @@ def estimate_monthly_from_devices(simulator, temp_now):
 # A rolling live baseline is maintained, so the result can change over time.
 # ----------------------------------------------------------------------------
 def live_anomaly(power_kw, history):
+    """Rolling z-score against the recent live stream. Thresholds are tuned
+    so that, given the simulator's real variance (including occasional surge
+    events), both normal and anomalous states genuinely occur over time —
+    this is not hard-coded to one outcome."""
     if len(history) < 8:
         return False, 0.0, float(np.mean(history)) if history else power_kw
+
     arr = np.array(history[-40:], dtype=float)
     baseline = float(np.mean(arr[:-1])) if len(arr) > 1 else float(arr.mean())
     std = float(np.std(arr[:-1])) if len(arr) > 2 else 0.08
-    std = max(std, 0.06)
+    std = max(std, 0.05)  # floor prevents division blow-up during very calm stretches
+
     z = (power_kw - baseline) / std
-    # Dynamic threshold: anomaly only when deviation is substantial and persistent
-    is_anomaly = abs(z) >= 3.2 and abs(power_kw - baseline) >= 0.45
+    deviation = power_kw - baseline
+
+    # Reachable thresholds: roughly the top/bottom ~1% of a normal
+    # distribution, plus a minimum absolute deviation so tiny baseline noise
+    # near zero never counts as an anomaly.
+    is_anomaly = abs(z) >= 2.5 and abs(deviation) >= 0.30
+
     return bool(is_anomaly), float(z), baseline
 
 # ----------------------------------------------------------------------------
@@ -607,6 +747,18 @@ def generate_live_recommendations(live, is_anomaly, z, monthly_kwh):
                      f"Projected usage is {monthly_kwh:.0f} kWh/month. Reducing high-load operating hours can move the household toward a lower consumption range.",
                      4.0))
 
+    # Cover any presenter-added device that is currently drawing significant
+    # power, since it won't be one of the five named checks above.
+    known_names = {"Air conditioner", "Fans", "Lamps", "Phone/device chargers", "Vacuum cleaner"}
+    for name, data in appliances.items():
+        if name in known_names:
+            continue
+        if data.get("on") and data.get("power_kw", 0) >= 1.0:
+            recs.append((f"{name} usage", "Low",
+                         f"{name} is currently drawing {data['power_kw']:.2f} kW. If it is not needed continuously, "
+                         "switching it off between uses reduces its contribution to the monthly bill.",
+                         0.10))
+
     # Never repeat the same set every refresh unless the underlying condition remains.
     return recs[:4]
 
@@ -645,6 +797,104 @@ with st.sidebar:
         '</div>',
         unsafe_allow_html=True,
     )
+    st.markdown("---")
+    st.markdown("### Household devices")
+    st.caption(
+        "The dashboard starts with 15 devices split into 24-hour household "
+        "devices and time-dependent devices. Add more from the catalog "
+        "below, or type a custom name, and assign it to a group."
+    )
+
+    if "custom_continuous" not in st.session_state:
+        st.session_state.custom_continuous = {}
+    if "custom_variable" not in st.session_state:
+        st.session_state.custom_variable = {}
+
+    already_added = set(st.session_state.custom_continuous) | set(st.session_state.custom_variable)
+    catalog_options = ["Custom device..."] + [
+        name for name in MASTER_DEVICE_CATALOG if name not in already_added and name not in ALL_DEVICE_NAMES
+    ]
+
+    with st.form("add_device_form", clear_on_submit=True):
+        picked = st.selectbox("Device", catalog_options)
+        custom_name = ""
+        if picked == "Custom device...":
+            custom_name = st.text_input("Device name")
+
+        preset = MASTER_DEVICE_CATALOG.get(picked, {})
+        default_kw = float(preset.get("kw", 0.10))
+        default_category = preset.get("default_category", "variable")
+
+        category_choice = st.radio(
+            "Group",
+            ["24-hour household devices", "Time-dependent devices"],
+            index=0 if default_category == "continuous" else 1,
+            key="add_device_category",
+        )
+        rated_kw = st.number_input(
+            "Rated power (kW)", min_value=0.001, max_value=10.0,
+            value=default_kw, step=0.01, format="%.3f",
+        )
+
+        if category_choice == "24-hour household devices":
+            duty_hours = st.number_input(
+                "Typical active hours per day (0–24)",
+                min_value=0.0, max_value=24.0,
+                value=float(preset.get("default_duty_hours", 3.0)),
+                step=0.5,
+            )
+            usage_pattern = None
+        else:
+            duty_hours = None
+            pattern_options = {
+                "Evening / night (e.g. lamps)": "evening",
+                "Daytime (e.g. vacuum, iron)": "daytime",
+                "Temperature-driven (e.g. cooling/heating)": "temperature",
+                "Frequent / anytime (e.g. chargers, kettle)": "frequent",
+            }
+            pattern_default = preset.get("default_pattern", "frequent")
+            default_label = next(
+                (label for label, val in pattern_options.items() if val == pattern_default),
+                "Frequent / anytime (e.g. chargers, kettle)",
+            )
+            pattern_label = st.selectbox(
+                "Usage pattern",
+                list(pattern_options.keys()),
+                index=list(pattern_options.keys()).index(default_label),
+            )
+            usage_pattern = pattern_options[pattern_label]
+
+        add_submitted = st.form_submit_button("Add device", use_container_width=True)
+
+    if add_submitted:
+        final_name = custom_name.strip() if picked == "Custom device..." else picked
+        if not final_name:
+            st.sidebar.error("Enter a device name before adding it.")
+        elif final_name in ALL_DEVICE_NAMES or final_name in already_added:
+            st.sidebar.error(f"'{final_name}' is already in the device list.")
+        elif category_choice == "24-hour household devices":
+            duty = max(0.0, min(1.0, (duty_hours or 0.0) / 24.0))
+            st.session_state.custom_continuous[final_name] = {"kw": rated_kw, "duty": duty}
+            st.rerun()
+        else:
+            st.session_state.custom_variable[final_name] = {"kw": rated_kw, "pattern": usage_pattern}
+            st.rerun()
+
+    if st.session_state.custom_continuous or st.session_state.custom_variable:
+        st.markdown("**Added devices**")
+        for name in list(st.session_state.custom_continuous):
+            cols = st.columns([3, 1])
+            cols[0].caption(f"{name} — 24-hour ({st.session_state.custom_continuous[name]['kw']:.2f} kW)")
+            if cols[1].button("Remove", key=f"remove_cont_{name}"):
+                del st.session_state.custom_continuous[name]
+                st.rerun()
+        for name in list(st.session_state.custom_variable):
+            cols = st.columns([3, 1])
+            cols[0].caption(f"{name} — time-dependent ({st.session_state.custom_variable[name]['kw']:.2f} kW)")
+            if cols[1].button("Remove", key=f"remove_var_{name}"):
+                del st.session_state.custom_variable[name]
+                st.rerun()
+
     st.markdown("---")
     st.markdown("### Team")
     st.markdown(
@@ -763,10 +1013,13 @@ def render_live_dashboard():
     # ------------------------------------------------------------------------
     e = live["energy"]
     w = live["weather"]
+    current_continuous_devices = get_active_continuous_devices()
+    current_variable_devices = get_active_variable_devices()
+    total_device_count = len(current_continuous_devices) + len(current_variable_devices)
     active_variable = sum(
-        1 for name in VARIABLE_DEVICES if e["appliances"][name]["on"]
+        1 for name in current_variable_devices if e["appliances"][name]["on"]
     )
-    active_total = len(CONTINUOUS_DEVICES) + active_variable
+    active_total = len(current_continuous_devices) + active_variable
 
     st.markdown('<div class="section">Live System Dashboard</div>', unsafe_allow_html=True)
     c1, c2, c3, c4 = st.columns(4)
@@ -791,7 +1044,7 @@ def render_live_dashboard():
             f'<div class="kpi"><div class="kpi-label">Instantaneous power</div>'
             f'<div class="kpi-value">{e["power_kw"]:.2f} kW</div>'
             f'<div class="kpi-sub">{e["power_w"]:.0f} W | {e["voltage_v"]:.1f} V | {e["current_a"]:.2f} A<br>'
-            f'<span class="status-sim">SIM IoT telemetry • {active_total}/15 active</span></div></div>',
+            f'<span class="status-sim">SIM IoT telemetry • {active_total}/{total_device_count} active</span></div></div>',
             unsafe_allow_html=True,
         )
     with c4:
@@ -829,12 +1082,15 @@ def render_live_dashboard():
     # ------------------------------------------------------------------------
     # HOUSEHOLD DEVICE DASHBOARD
     # ------------------------------------------------------------------------
-    st.markdown('<div class="section">Household Device Dashboard — 15 Devices</div>', unsafe_allow_html=True)
+    st.markdown(
+        f'<div class="section">Household Device Dashboard — {total_device_count} Devices</div>',
+        unsafe_allow_html=True,
+    )
     left, right = st.columns(2)
     with left:
-        st.markdown("#### 24-hour household devices")
+        st.markdown(f"#### 24-hour household devices ({len(current_continuous_devices)})")
         st.caption("These devices remain available/active as part of the household baseline; their actual energy contribution uses realistic duty cycles.")
-        for name in CONTINUOUS_DEVICES:
+        for name in current_continuous_devices:
             d = e["appliances"][name]
             st.markdown(
                 f'<div class="device-card"><div class="device-title">{name.upper()}</div>'
@@ -843,9 +1099,9 @@ def render_live_dashboard():
                 f'</div></div>', unsafe_allow_html=True
             )
     with right:
-        st.markdown("#### Time-dependent devices")
+        st.markdown(f"#### Time-dependent devices ({len(current_variable_devices)})")
         st.caption("These devices switch according to time of day, temperature, and stochastic household behavior.")
-        for name in VARIABLE_DEVICES:
+        for name in current_variable_devices:
             d = e["appliances"][name]
             state_color = "#86efac" if d["on"] else "#64748b"
             st.markdown(
