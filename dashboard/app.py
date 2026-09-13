@@ -1,6 +1,12 @@
 # ============================================================================
 # EnergySavvy AI - DEPLOYMENT DASHBOARD
-# Existing dashboard revised for live-only production display.
+#
+# THIN Streamlit layer. All logic lives in src/. This file only:
+#   1. builds a live DataFrame from the simulator
+#   2. adds y_pred using the trained forecast model (notebook 03)
+#   3. runs the notebook-04 anomaly detector  → real messages
+#   4. runs the notebook-05 20-rule recommendation engine
+#   5. renders the same UI design
 #
 # TRAINING ONLY:
 #   - UCI Individual Household Electric Power Consumption (historical)
@@ -11,15 +17,8 @@
 #   - Open-Meteo live weather
 #   - Stateful simulated household telemetry (temporary IoT replacement)
 #   - Forecast model trained offline, but predictions use LIVE SIM telemetry
-#   - Live anomaly detection
-#   - Live, conditional recommendations
-#
-# ARCHITECTURE NOTE:
-#   Every functional layer below (weather, IP location, the household
-#   simulator, feature engineering, forecasting, anomaly detection,
-#   recommendations, and bill calculation) is IMPORTED from src/ rather
-#   than reimplemented here. This file only wires those modules together
-#   and renders the Streamlit UI.
+#   - Live anomaly detection (residual + z-score + IsolationForest, notebook 04)
+#   - Live, conditional recommendations (20 rules, notebook 05)
 # ============================================================================
 
 import base64
@@ -55,13 +54,18 @@ from src.realtime.energy_simulator import (  # noqa: E402
     HouseholdEnergySimulator,
 )
 from src.features.household_features import (  # noqa: E402
+    FEATURE_ORDER,
+    build_features_from_values,
     create_live_hourly_history,
     forecast_live_next_hours,
 )
 from src.models.forecasting import load_model  # noqa: E402
-from src.models.anomaly_detection import live_anomaly  # noqa: E402
+from src.models.anomaly_detection import (  # noqa: E402
+    detect_with_residual_and_iso,
+    build_anomaly_report,
+)
 from src.recommendations.recommendation_engine import (  # noqa: E402
-    generate_live_recommendations,
+    generate_recommendations,
 )
 from src.billing.tariff import (  # noqa: E402
     estimate_actual_monthly_bill,
@@ -77,9 +81,7 @@ st.set_page_config(
 )
 
 # ----------------------------------------------------------------------------
-# Formal project visual + stable styling.
-# The visual is embedded so the dashboard does not depend on a missing image
-# file. The same SVG is also used as the browser favicon.
+# Hero SVG + favicon (unchanged)
 # ----------------------------------------------------------------------------
 PROJECT_SVG = """<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="500" viewBox="0 0 1200 500">
 <defs>
@@ -180,7 +182,7 @@ st.markdown(
 )
 
 # ----------------------------------------------------------------------------
-# Basic project information
+# Project info
 # ----------------------------------------------------------------------------
 TEAM_NAME = "VoltAI"
 SUPERVISOR = "AbdelRahman Salem"
@@ -191,7 +193,6 @@ GITHUB = "https://github.com/Mohamed-Al-Saudi"
 PROJECT_GITHUB = "https://github.com/Mohamed-Al-Saudi/EnergySavvy-AI-Project"
 ORIGIN = "Cairo, Egypt"
 PROJECT_NAME = "EnergySavvy AI"
-# Public web-app URL entered by the user is used for the QR code.
 DEFAULT_APP_URL = os.getenv("ENERGYSAVVY_APP_URL", "")
 DESCRIPTION = (
     "EnergySavvy AI is a software-based intelligent energy management system "
@@ -213,9 +214,7 @@ st.markdown(
 )
 
 # ----------------------------------------------------------------------------
-# Weather: Open-Meteo is primary and uses the selected governorate coordinates.
-# wttr.in is a fallback, but NEVER hard-coded to Cairo. Logic lives in
-# src.realtime.weather_api; this is just a thin Streamlit cache wrapper.
+# Thin Streamlit cache wrapper over the src weather function.
 # ----------------------------------------------------------------------------
 WEATHER_CACHE_SECONDS = 45
 
@@ -226,7 +225,7 @@ def get_current_weather(lat, lon):
 
 
 # ----------------------------------------------------------------------------
-# Sidebar: location, household devices, team.
+# Sidebar: location, household devices, team, QR
 # ----------------------------------------------------------------------------
 with st.sidebar:
     st.markdown("## EnergySavvy AI")
@@ -350,8 +349,7 @@ with st.sidebar:
         )
 
 # ----------------------------------------------------------------------------
-# Build the device configs used by the simulator/bill from the catalog +
-# the user's sidebar selection.
+# Build device configs from sidebar selection
 # ----------------------------------------------------------------------------
 continuous_devices_cfg = {
     name: {"kw": DEVICE_CATALOG[name]["kw"], "duty": DEVICE_CATALOG[name]["duty"]}
@@ -364,7 +362,7 @@ variable_devices_cfg = {
 TOTAL_DEVICES = len(continuous_devices_cfg) + len(variable_devices_cfg)
 
 # ----------------------------------------------------------------------------
-# Persistent live state.
+# Persistent live state
 # ----------------------------------------------------------------------------
 if "history" not in st.session_state:
     st.session_state.history = []
@@ -373,7 +371,6 @@ if "hourly_live_history" not in st.session_state:
 if "last_hour_bucket" not in st.session_state:
     st.session_state.last_hour_bucket = None
 
-# Recreate the simulator whenever the selected device list changes.
 device_key = (tuple(sorted(selected_continuous)), tuple(sorted(selected_variable)))
 if st.session_state.get("device_key") != device_key or "simulator" not in st.session_state:
     st.session_state.simulator = HouseholdEnergySimulator(continuous_devices_cfg, variable_devices_cfg)
@@ -381,16 +378,15 @@ if st.session_state.get("device_key") != device_key or "simulator" not in st.ses
     st.session_state.hourly_live_history = None
     st.session_state.history = []
 
-# Recreate the hourly warm-start only when location changes.
 location_key = (round(float(selected_lat), 4), round(float(selected_lon), 4), selected_governorate)
 if st.session_state.get("location_key") != location_key:
     st.session_state.location_key = location_key
     st.session_state.hourly_live_history = None
     st.session_state.history = []
 
+
 # ----------------------------------------------------------------------------
-# Render function. Streamlit fragment keeps generating live data continuously
-# without requiring the jury to press Refresh.
+# Render
 # ----------------------------------------------------------------------------
 def render_live_dashboard():
     now = datetime.now()
@@ -411,14 +407,13 @@ def render_live_dashboard():
     st.session_state.history.append(live)
     st.session_state.history = st.session_state.history[-180:]
 
-    # Warm-start 168 hourly points from the LIVE simulator, not old datasets.
+    # Warm-start 168 hourly points from the LIVE simulator
     if st.session_state.hourly_live_history is None:
         st.session_state.hourly_live_history = create_live_hourly_history(
             st.session_state.simulator, weather["temperature_c"]
         )
         st.session_state.last_hour_bucket = now.replace(minute=0, second=0, microsecond=0)
 
-    # Only add a new hourly point when a real clock hour changes.
     current_bucket = now.replace(minute=0, second=0, microsecond=0)
     if current_bucket > st.session_state.last_hour_bucket:
         d_hour = st.session_state.simulator.generate(temperature=weather["temperature_c"], when=current_bucket)
@@ -426,9 +421,6 @@ def render_live_dashboard():
         st.session_state.hourly_live_history = st.session_state.hourly_live_history.tail(168)
         st.session_state.last_hour_bucket = current_bucket
 
-    # ------------------------------------------------------------------------
-    # LIVE SYSTEM STATUS
-    # ------------------------------------------------------------------------
     e = live["energy"]
     w = live["weather"]
     active_variable = sum(
@@ -436,6 +428,9 @@ def render_live_dashboard():
     )
     active_total = len(continuous_devices_cfg) + active_variable
 
+    # ========================================================================
+    # LIVE SYSTEM STATUS
+    # ========================================================================
     st.markdown('<div class="section">Live System Dashboard</div>', unsafe_allow_html=True)
     c1, c2, c3, c4 = st.columns(4)
     with c1:
@@ -471,9 +466,9 @@ def render_live_dashboard():
             unsafe_allow_html=True,
         )
 
-    # ------------------------------------------------------------------------
+    # ========================================================================
     # LIVE CONSUMPTION
-    # ------------------------------------------------------------------------
+    # ========================================================================
     st.markdown('<div class="section">Live Consumption Dashboard</div>', unsafe_allow_html=True)
     plot_df = pd.DataFrame([
         {"time": x["time"], "power_kw": x["energy"]["power_kw"]}
@@ -487,16 +482,16 @@ def render_live_dashboard():
     ))
     fig.update_layout(
         height=360, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(color="#cbd5e1"), margin=dict(l=10,r=10,t=20,b=10),
+        font=dict(color="#cbd5e1"), margin=dict(l=10, r=10, t=20, b=10),
         hovermode="x unified", xaxis_title=None, yaxis_title="Power (kW)",
         showlegend=False,
     )
     st.plotly_chart(fig, use_container_width=True, key=f"live_power_{len(st.session_state.history)}")
     st.caption("Production display: every point above is generated from the live simulator during this session. No UCI consumption rows are displayed.")
 
-    # ------------------------------------------------------------------------
+    # ========================================================================
     # HOUSEHOLD DEVICE DASHBOARD
-    # ------------------------------------------------------------------------
+    # ========================================================================
     st.markdown(f'<div class="section">Household Device Dashboard — {TOTAL_DEVICES} Devices</div>', unsafe_allow_html=True)
     left, right = st.columns(2)
     with left:
@@ -527,12 +522,59 @@ def render_live_dashboard():
                 f'</div></div>', unsafe_allow_html=True
             )
 
-    # ------------------------------------------------------------------------
-    # 1. FORECAST + BILL
-    # ------------------------------------------------------------------------
-    st.markdown('<div class="section">1. Forecast Future Consumption & Monthly Bill</div>', unsafe_allow_html=True)
+    # ========================================================================
+    # BUILD THE LIVE DATAFRAME → RUN NOTEBOOK 03 → 04 → 05
+    # ========================================================================
     model = load_model()
     hourly = st.session_state.hourly_live_history
+
+    # --- Notebook 03 layer: features + y_pred from the trained model ---
+    feats = build_features_from_values(hourly.values, hourly.index).dropna()
+
+    if model is not None and not feats.empty:
+        try:
+            feats["y_pred"] = model.predict(feats[FEATURE_ORDER])
+        except Exception:
+            feats["y_pred"] = feats["power_kw"].rolling(6, min_periods=1).mean()
+    else:
+        feats["y_pred"] = feats["power_kw"].rolling(6, min_periods=1).mean()
+
+    # Rename to what notebooks 04/05 expect
+    df_live = feats.rename(columns={"power_kw": "Global_active_power"}).copy()
+    df_live["hour"] = df_live.index.hour
+    df_live["dayofweek"] = df_live.index.dayofweek
+    df_live["month"] = df_live.index.month
+    df_live["is_weekend"] = (df_live.index.dayofweek >= 5).astype(int)
+
+    # --- Notebook 04: residual + z-score + IsolationForest + message ---
+    df_anom_full = detect_with_residual_and_iso(
+        df_live,
+        target_col="Global_active_power",
+        pred_col="y_pred",
+    )
+    latest_row = df_anom_full.iloc[-1]
+    is_anomaly = bool(latest_row["is_anomaly"])
+    z = float(latest_row.get("z_score", 0.0))
+    baseline = float(latest_row["y_pred"])
+    live_anomaly_message = latest_row.get("message", "") or "No anomaly message available for the current hour."
+
+    # --- Notebook 04: report (top severe first) ---
+    anomaly_report = build_anomaly_report(df_anom_full, target_col="Global_active_power")
+
+    # --- Notebook 05: 20-rule recommendations on the live DataFrame ---
+    try:
+        rec_df = generate_recommendations(
+            df_h=df_live,
+            df_anom=anomaly_report,
+            sub_share_pct=None,
+        )
+    except Exception:
+        rec_df = pd.DataFrame()
+
+    # ========================================================================
+    # 1. FORECAST + BILL
+    # ========================================================================
+    st.markdown('<div class="section">1. Forecast Future Consumption & Monthly Bill</div>', unsafe_allow_html=True)
     preds_24h = forecast_live_next_hours(model, hourly, hours=24)
     preds = preds_24h[:6]
     forecast_times = [hourly.index[-1] + timedelta(hours=i) for i in range(1, 7)]
@@ -552,7 +594,7 @@ def render_live_dashboard():
         ))
         figf.update_layout(
             height=340, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-            font=dict(color="#cbd5e1"), margin=dict(l=10,r=10,t=20,b=10),
+            font=dict(color="#cbd5e1"), margin=dict(l=10, r=10, t=20, b=10),
             hovermode="x unified", yaxis_title="Power (kW)"
         )
         st.plotly_chart(figf, use_container_width=True, key=f"forecast_{len(st.session_state.history)}")
@@ -568,7 +610,6 @@ def render_live_dashboard():
         st.metric("Projected monthly bill", f"{monthly_bill:,.0f} EGP")
         st.caption("Estimate = device power × expected daily operating hours × 30 days, then residential tier pricing.")
 
-    # -- New: actual bill + next-hour / next-24h bill, from the forecast model --
     actual_monthly_kwh, actual_monthly_bill = estimate_actual_monthly_bill(e["power_kw"])
     next_hour_kwh, next_hour_cost, eff_rate = forecast_cost([preds_24h[0]], monthly_kwh)
     next_24h_kwh, next_24h_cost, _ = forecast_cost(preds_24h, monthly_kwh)
@@ -608,56 +649,81 @@ def render_live_dashboard():
             "651–1000 = 2.40; above 1000 = 2.74 EGP/kWh on the full consumption."
         )
 
-    # ------------------------------------------------------------------------
-    # 2. ANOMALY
-    # ------------------------------------------------------------------------
+    # ========================================================================
+    # 2. ANOMALY — powered by notebook 04 (detect_with_residual_and_iso)
+    # ========================================================================
     st.markdown('<div class="section">2. Detect Unusual Behavior</div>', unsafe_allow_html=True)
-    power_history = [x["energy"]["power_kw"] for x in st.session_state.history]
-    is_anomaly, z, baseline = live_anomaly(e["power_kw"], power_history)
     ca, cb = st.columns([1, 2])
     with ca:
         if is_anomaly:
-            st.error(f"LIVE ANOMALY DETECTED\n\n{e['power_kw']:.2f} kW  |  z = {z:.2f}")
+            st.error(f"LIVE ANOMALY DETECTED\n\n{latest_row['Global_active_power']:.2f} kW  |  z = {z:.2f}")
         else:
-            st.success(f"LIVE NORMAL\n\n{e['power_kw']:.2f} kW  |  z = {z:.2f}")
+            st.success(f"LIVE NORMAL\n\n{latest_row['Global_active_power']:.2f} kW  |  z = {z:.2f}")
         st.metric("Recent live baseline", f"{baseline:.2f} kW")
-        st.metric("Deviation", f"{e['power_kw'] - baseline:+.2f} kW")
+        st.metric("Deviation", f"{latest_row['Global_active_power'] - baseline:+.2f} kW")
     with cb:
         st.markdown(
-            f'<div class="kpi"><div class="kpi-label">Live anomaly explanation</div>'
-            f'<div class="kpi-value" style="font-size:20px;">{"Attention required" if is_anomaly else "Within recent live range"}</div>'
-            f'<div class="kpi-sub">The decision is based on the current session’s rolling live telemetry. '
-            f'It is recalculated on every update, so the status can change between normal and unusual behavior.</div></div>',
+            f'<div class="kpi"><div class="kpi-label">Live anomaly explanation (notebook 04)</div>'
+            f'<div class="kpi-value" style="font-size:20px;">'
+            f'{"Attention required" if is_anomaly else "Within recent live range"}</div>'
+            f'<div class="kpi-sub">{live_anomaly_message}</div></div>',
             unsafe_allow_html=True,
         )
 
-    # ------------------------------------------------------------------------
-    # 3. RECOMMENDATIONS — messages only, no old recommendation table
-    # ------------------------------------------------------------------------
+    with st.expander(f"Recent anomaly report — {len(anomaly_report)} rows (notebook 04)"):
+        if anomaly_report.empty:
+            st.markdown("No anomalies detected in the current live window.")
+        else:
+            st.dataframe(
+                anomaly_report.head(20)[
+                    ["Global_active_power", "y_pred", "residual",
+                     "z_score", "abs_error", "hour", "dayofweek", "message"]
+                ].round(3),
+                use_container_width=True,
+                hide_index=True,
+            )
+
+    # ========================================================================
+    # 3. RECOMMENDATIONS — powered by notebook 05 (20-rule engine)
+    # ========================================================================
     st.markdown('<div class="section">3. Data-Driven Recommendations</div>', unsafe_allow_html=True)
-    recs = generate_live_recommendations(live, is_anomaly, z, monthly_kwh)
-    if not recs:
-        st.success("No action is required right now. Current live conditions are within the configured energy-saving thresholds.")
+
+    if rec_df is None or rec_df.empty:
+        st.success(
+            "No action is required right now. Current live conditions are within "
+            "the configured energy-saving thresholds."
+        )
     else:
-        for title, severity, message, saving in recs:
-            if severity == "High":
-                border = "#ef4444"
-            elif severity == "Medium":
-                border = "#f59e0b"
-            else:
-                border = "#22c55e"
+        # Show the most severe up to 4
+        sev_order = {"High": 0, "Medium": 1, "Low": 2}
+        display = rec_df.copy()
+        display["_sev"] = display["severity"].map(sev_order).fillna(3)
+        display = display.sort_values(["_sev", "timestamp"]).head(4)
+
+        for _, r in display.iterrows():
+            sev = r["severity"]
+            border = {"High": "#ef4444", "Medium": "#f59e0b", "Low": "#22c55e"}.get(sev, "#22c55e")
             st.markdown(
                 f'<div class="rec" style="border-left:4px solid {border};">'
-                f'<div class="rec-title">{title} • {severity}</div>'
-                f'<div class="rec-msg">{message}</div>'
-                f'<div class="rec-save">Estimated saving: {saving:.2f} kWh per applicable day/event</div>'
+                f'<div class="rec-title">{r["type"]} • {sev}</div>'
+                f'<div class="rec-msg">{r["message"]}</div>'
+                f'<div class="rec-save">Estimated saving: {r["estimated_saving_kwh"]:.2f} kWh '
+                f'| condition: {r["condition"]}</div>'
                 f'</div>',
                 unsafe_allow_html=True,
             )
 
-    # ------------------------------------------------------------------------
-    # Snapshot / production transparency
-    # ------------------------------------------------------------------------
+        with st.expander(f"Full recommendation table — {len(rec_df)} rows (notebook 05)"):
+            st.dataframe(
+                rec_df[["timestamp", "type", "severity", "message",
+                        "estimated_saving_kwh", "condition"]].tail(50),
+                use_container_width=True,
+                hide_index=True,
+            )
+
+    # ========================================================================
+    # System snapshot / production transparency
+    # ========================================================================
     st.markdown('<div class="section">System Snapshot</div>', unsafe_allow_html=True)
     s1, s2, s3, s4 = st.columns(4)
     s1.metric("Governorate", selected_governorate)
@@ -667,16 +733,18 @@ def render_live_dashboard():
 
     st.markdown(
         '<div class="small-note">'
-        '<b>Production data boundary:</b> UCI Household and historical Cairo Weather datasets were used for offline model training/validation only. '
-        'The jury-facing dashboard displays current location, live weather, and newly generated simulated household telemetry. '
-        'The simulator is a temporary replacement for real IoT sensors and can later be connected to physical meters.'
+        '<b>Production data boundary:</b> UCI Household and historical Cairo Weather '
+        'datasets were used for offline model training/validation only. '
+        'The jury-facing dashboard displays current location, live weather, and newly '
+        'generated simulated household telemetry. The simulator is a temporary replacement '
+        'for real IoT sensors and can later be connected to physical meters.'
         '</div>',
         unsafe_allow_html=True,
     )
 
+
 # ----------------------------------------------------------------------------
-# Continuous refresh. Streamlit fragment avoids the old "wait 1 minute" issue.
-# Fallback for older Streamlit versions: show a manual refresh button.
+# Continuous refresh (Streamlit fragment) with fallback for older versions.
 # ----------------------------------------------------------------------------
 if hasattr(st, "fragment"):
     @st.fragment(run_every="5s")
