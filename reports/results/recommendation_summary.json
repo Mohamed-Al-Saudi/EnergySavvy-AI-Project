@@ -1,0 +1,35 @@
+{
+  "total_recommendations": 9036,
+  "by_type": {
+    "Peak_Shift": 2860,
+    "Morning_Peak": 1636,
+    "Night_Idle_Waste": 978,
+    "Peak_to_Average_Ratio": 938,
+    "Midday_High": 877,
+    "Consumption_Spike": 740,
+    "Sustained_High_Load": 353,
+    "Night_Heavy_Load": 348,
+    "High_Current_Warning": 200,
+    "Long_Duration_High": 53,
+    "Anomaly_Inspection": 50,
+    "Weekend_High": 1,
+    "Submetering_Dominance": 1,
+    "High_Base_Load": 1
+  },
+  "by_severity": {
+    "Medium": 5536,
+    "High": 2521,
+    "Low": 979
+  },
+  "total_saving_kwh": 8691.682999999999,
+  "peak_hours": {
+    "20": 1.8897756338119507,
+    "21": 1.867965579032898,
+    "19": 1.7247487306594849
+  },
+  "submetering_share_pct": {
+    "Sub_metering_1": 12.549173355102539,
+    "Sub_metering_2": 14.582226753234863,
+    "Sub_metering_3": 72.86859893798828
+  }
+}
